@@ -30,6 +30,7 @@ router.get('/public', (req, res) => {
       FROM prompts p
       LEFT JOIN users u ON p.user_id = u.id
       WHERE (p.is_public = 1 OR p.is_public = '1')
+        AND (p.publish_status = 'approved' OR p.publish_status IS NULL)
     `;
     const params = [];
 
@@ -60,20 +61,20 @@ router.get('/public', (req, res) => {
     const rows = db.prepare(sql).all(...params);
 
     // Compute public stats for published items only
-    const totalPrompts = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 OR is_public = '1'").get().count;
-    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image' AND (is_public = 1 OR is_public = '1')").get().count;
-    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video' AND (is_public = 1 OR is_public = '1')").get().count;
-    const totalCreators = db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM prompts WHERE is_public = 1 OR is_public = '1'").get().count;
+    const totalPrompts = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
+    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image' AND (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
+    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video' AND (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
+    const totalCreators = db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
 
     const models = db.prepare(`
       SELECT ai_model, COUNT(*) as count
       FROM prompts
-      WHERE (is_public = 1 OR is_public = '1') AND ai_model IS NOT NULL AND ai_model != ''
+      WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL) AND ai_model IS NOT NULL AND ai_model != ''
       GROUP BY ai_model
       ORDER BY count DESC
     `).all();
 
-    const allTagsRows = db.prepare(`SELECT tags FROM prompts WHERE (is_public = 1 OR is_public = '1') AND tags IS NOT NULL AND tags != ''`).all();
+    const allTagsRows = db.prepare(`SELECT tags FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL) AND tags IS NOT NULL AND tags != ''`).all();
     const tagSet = new Set();
     allTagsRows.forEach(row => {
       if (row.tags) {
@@ -283,6 +284,7 @@ router.post('/', upload.single('media_file'), (req, res) => {
     }
 
     // Determine publication status based on role and request
+    const userRole = req.user.role || 'user';
     const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin';
     const wantsPublish = is_public === true || is_public === 'true' || is_public === 1 || is_public === '1';
 
