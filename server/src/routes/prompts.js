@@ -28,8 +28,8 @@ router.get('/public', (req, res) => {
         u.avatar as author_avatar,
         u.role as author_role
       FROM prompts p
-      JOIN users u ON p.user_id = u.id
-      WHERE p.is_public = 1
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE (p.is_public = 1 OR p.is_public = '1')
     `;
     const params = [];
 
@@ -60,20 +60,20 @@ router.get('/public', (req, res) => {
     const rows = db.prepare(sql).all(...params);
 
     // Compute public stats for published items only
-    const totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE is_public = 1').get().count;
-    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image' AND is_public = 1").get().count;
-    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video' AND is_public = 1").get().count;
-    const totalCreators = db.prepare('SELECT COUNT(DISTINCT user_id) as count FROM prompts WHERE is_public = 1').get().count;
+    const totalPrompts = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 OR is_public = '1'").get().count;
+    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image' AND (is_public = 1 OR is_public = '1')").get().count;
+    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video' AND (is_public = 1 OR is_public = '1')").get().count;
+    const totalCreators = db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM prompts WHERE is_public = 1 OR is_public = '1'").get().count;
 
     const models = db.prepare(`
       SELECT ai_model, COUNT(*) as count
       FROM prompts
-      WHERE is_public = 1 AND ai_model IS NOT NULL AND ai_model != ''
+      WHERE (is_public = 1 OR is_public = '1') AND ai_model IS NOT NULL AND ai_model != ''
       GROUP BY ai_model
       ORDER BY count DESC
     `).all();
 
-    const allTagsRows = db.prepare('SELECT tags FROM prompts WHERE is_public = 1 AND tags IS NOT NULL AND tags != ""').all();
+    const allTagsRows = db.prepare(`SELECT tags FROM prompts WHERE (is_public = 1 OR is_public = '1') AND tags IS NOT NULL AND tags != ''`).all();
     const tagSet = new Set();
     allTagsRows.forEach(row => {
       if (row.tags) {

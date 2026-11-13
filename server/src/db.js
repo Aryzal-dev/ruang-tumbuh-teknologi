@@ -101,8 +101,8 @@ export function initDatabase() {
     const insertPrompt = db.prepare(`
       INSERT INTO prompts (
         user_id, title, prompt_text, negative_prompt, media_type, media_url,
-        ai_model, aspect_ratio, seed, cfg_scale, steps, sampler, tags, is_favorite
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ai_model, aspect_ratio, seed, cfg_scale, steps, sampler, tags, is_favorite, is_public
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `);
 
     // Sample 1: Cyberpunk Neon Samurai (Image)

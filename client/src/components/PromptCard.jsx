@@ -10,7 +10,7 @@ import {
   Layers,
 } from 'lucide-react';
 
-export default function PromptCard({ prompt, onSelect, onToggleFavorite }) {
+export default function PromptCard({ prompt, onSelect, onToggleFavorite, onTogglePublish }) {
   const [copied, setCopied] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -24,6 +24,13 @@ export default function PromptCard({ prompt, onSelect, onToggleFavorite }) {
   const handleFavorite = (e) => {
     e.stopPropagation();
     onToggleFavorite(prompt.id);
+  };
+
+  const handlePublish = (e) => {
+    e.stopPropagation();
+    if (onTogglePublish) {
+      onTogglePublish(prompt.id);
+    }
   };
 
   const tags = prompt.tags
@@ -105,15 +112,28 @@ export default function PromptCard({ prompt, onSelect, onToggleFavorite }) {
           )}
 
           {prompt.is_public !== undefined && (
-            <span
-              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-md border ${
+            <button
+              type="button"
+              onClick={handlePublish}
+              title={
+                onTogglePublish
+                  ? prompt.is_public === 1
+                    ? 'Status: Publik (Klik untuk jadikan Privat)'
+                    : 'Status: Privat (Klik untuk Publikasikan ke Galeri Publik)'
+                  : prompt.is_public === 1
+                  ? 'Publik'
+                  : 'Privat'
+              }
+              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-md border transition-all ${
+                onTogglePublish ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
+              } ${
                 prompt.is_public === 1
-                  ? 'bg-[#B7F36B]/15 text-[#B7F36B] border-[#B7F36B]/40'
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  ? 'bg-[#B7F36B]/20 text-[#B7F36B] border-[#B7F36B]/40 hover:bg-[#B7F36B]/30'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
               }`}
             >
-              {prompt.is_public === 1 ? 'Publik' : 'Privat'}
-            </span>
+              {prompt.is_public === 1 ? '🌐 Publik' : '🔒 Privat'}
+            </button>
           )}
         </div>
 

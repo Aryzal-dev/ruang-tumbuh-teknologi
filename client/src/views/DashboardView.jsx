@@ -373,6 +373,7 @@ export default function DashboardView({ onNavigate }) {
                       prompt={prompt}
                       onSelect={(p) => setSelectedPrompt(p)}
                       onToggleFavorite={handleToggleFavorite}
+                      onTogglePublish={handleTogglePublish}
                     />
                   ))}
                 </div>
