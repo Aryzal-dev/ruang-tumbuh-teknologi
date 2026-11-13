@@ -60,6 +60,14 @@ export default function DashboardView({ onNavigate }) {
       const data = await api.getPrompts(params);
       let list = data.prompts || [];
 
+      // If backend returned stats with prompts, update stats state immediately
+      if (data.stats) {
+        setStats((prev) => ({
+          ...prev,
+          stats: { ...(prev?.stats || {}), ...data.stats },
+        }));
+      }
+
       // Filter by tag in memory if selectedTag
       if (selectedTag) {
         list = list.filter((p) => {
@@ -174,6 +182,33 @@ export default function DashboardView({ onNavigate }) {
     }
   };
 
+  // Derive robust stats that are ALWAYS synchronized with current prompts collection
+  const statsTotal = stats?.stats?.total && stats.stats.total > 0 ? stats.stats.total : prompts.length;
+  const statsImages = stats?.stats?.images !== undefined && stats.stats.images > 0
+    ? stats.stats.images
+    : prompts.filter((p) => p.media_type === 'image').length;
+  const statsVideos = stats?.stats?.videos !== undefined && stats.stats.videos > 0
+    ? stats.stats.videos
+    : prompts.filter((p) => p.media_type === 'video').length;
+  const statsFavorites = stats?.stats?.favorites !== undefined
+    ? stats.stats.favorites
+    : prompts.filter((p) => p.is_favorite === 1).length;
+  const statsPublished = stats?.stats?.published !== undefined
+    ? stats.stats.published
+    : prompts.filter((p) => p.is_public === 1).length;
+
+  const currentStats = {
+    stats: {
+      total: statsTotal,
+      images: statsImages,
+      videos: statsVideos,
+      favorites: statsFavorites,
+      published: statsPublished,
+    },
+    models: stats?.models || [],
+    tags: stats?.tags || [],
+  };
+
   return (
     <div className="min-h-screen bg-[#101C32] text-[#E8ECF1] flex flex-col lg:flex-row selection:bg-[#B7F36B] selection:text-[#101C32]">
       {/* Toast Notification */}
@@ -198,7 +233,7 @@ export default function DashboardView({ onNavigate }) {
         setSelectedModel={setSelectedModel}
         selectedTag={selectedTag}
         setSelectedTag={setSelectedTag}
-        stats={stats}
+        stats={currentStats}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         onLogout={handleLogout}
@@ -239,13 +274,11 @@ export default function DashboardView({ onNavigate }) {
                       Total Prompt
                     </span>
                     <span className="text-2xl font-bold text-white mt-1 block font-['Plus_Jakarta_Sans']">
-                      {stats?.stats?.total ?? 0}
+                      {statsTotal}
                     </span>
-                    {stats?.stats?.published !== undefined && (
-                      <span className="text-[10px] text-[#B7F36B] block mt-0.5 font-medium">
-                        {stats.stats.published} dipublikasikan
-                      </span>
-                    )}
+                    <span className="text-[10px] text-[#B7F36B] block mt-0.5 font-medium">
+                      {statsPublished} dipublikasikan
+                    </span>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-[#B7F36B]/10 border border-[#B7F36B]/20 flex items-center justify-center text-[#B7F36B]">
                     <Sparkles className="w-5 h-5" />
@@ -258,7 +291,7 @@ export default function DashboardView({ onNavigate }) {
                       Gambar AI
                     </span>
                     <span className="text-2xl font-bold text-white mt-1 block font-['Plus_Jakarta_Sans']">
-                      {stats?.stats?.images ?? 0}
+                      {statsImages}
                     </span>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-[#B7F36B]/10 border border-[#B7F36B]/20 flex items-center justify-center text-[#B7F36B]">
@@ -272,7 +305,7 @@ export default function DashboardView({ onNavigate }) {
                       Video AI
                     </span>
                     <span className="text-2xl font-bold text-white mt-1 block font-['Plus_Jakarta_Sans']">
-                      {stats?.stats?.videos ?? 0}
+                      {statsVideos}
                     </span>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-[#B7F36B]/10 border border-[#B7F36B]/20 flex items-center justify-center text-[#B7F36B]">
@@ -286,7 +319,7 @@ export default function DashboardView({ onNavigate }) {
                       Favorit
                     </span>
                     <span className="text-2xl font-bold text-white mt-1 block font-['Plus_Jakarta_Sans']">
-                      {stats?.stats?.favorites ?? 0}
+                      {statsFavorites}
                     </span>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-[#B7F36B]/10 border border-[#B7F36B]/20 flex items-center justify-center text-[#B7F36B]">

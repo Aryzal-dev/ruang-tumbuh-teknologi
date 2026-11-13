@@ -167,7 +167,23 @@ router.get('/', (req, res) => {
     }
 
     const rows = db.prepare(sql).all(...params);
-    res.json({ prompts: rows });
+
+    const totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
+    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
+    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
+    const totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
+    const totalPublished = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1').get(userId).count;
+
+    res.json({
+      prompts: rows,
+      stats: {
+        total: totalPrompts,
+        images: totalImages,
+        videos: totalVideos,
+        favorites: totalFavorites,
+        published: totalPublished,
+      },
+    });
   } catch (err) {
     console.error('Fetch prompts error:', err);
     res.status(500).json({ error: 'Gagal memuat daftar prompt.' });
