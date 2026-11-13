@@ -1,0 +1,25 @@
+{
+  "name": "appsaveprompt",
+  "version": "1.0.0",
+  "description": "Aplikasi modern untuk menyimpan prompt AI beserta hasilnya (gambar dan video) dengan fitur login, sidebar, dan lightbox",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "build": "npm --prefix client install && npm --prefix client run build && npm --prefix server install",
+    "start:server": "npm --prefix server start",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build:client": "npm --prefix client run build"
+  },
+  "keywords": [
+    "ai",
+    "prompt",
+    "midjourney",
+    "kling",
+    "stable-diffusion",
+    "video",
+    "image",
+    "vault"
+  ],
+  "author": "",
+  "license": "ISC"
+}
