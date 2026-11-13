@@ -12,7 +12,9 @@ import {
   Loader2,
   Globe,
   Lock,
+  Clock,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const COMMON_MODELS = [
   'Midjourney v6',
@@ -29,6 +31,9 @@ const COMMON_MODELS = [
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2'];
 
 export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
+
   const [mediaTab, setMediaTab] = useState('upload'); // 'upload' | 'url'
   const [title, setTitle] = useState('');
   const [promptText, setPromptText] = useState('');
@@ -518,37 +523,59 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
             )}
           </div>
 
-          {/* Fitur Publikasi ke Galeri Publik */}
+          {/* Fitur Publikasi / Pengajuan Publikasi ke Galeri Publik */}
           <div className="p-4 rounded-2xl bg-[#15233D] border border-[#22375D] flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
                   isPublic
-                    ? 'bg-[#B7F36B]/15 text-[#B7F36B] border border-[#B7F36B]/30'
+                    ? isAdmin
+                      ? 'bg-[#B7F36B]/15 text-[#B7F36B] border border-[#B7F36B]/30'
+                      : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                     : 'bg-[#101C32] text-[#E8ECF1]/60 border border-[#22375D]'
                 }`}
               >
-                {isPublic ? <Globe className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+                {isPublic ? (
+                  isAdmin ? (
+                    <Globe className="w-5 h-5" />
+                  ) : (
+                    <Clock className="w-5 h-5 text-amber-300" />
+                  )
+                ) : (
+                  <Lock className="w-5 h-5" />
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white font-['Plus_Jakarta_Sans']">
-                    Publikasikan ke Galeri Publik
+                    {isAdmin
+                      ? 'Publikasikan ke Galeri Publik'
+                      : 'Ajukan Publikasi ke Galeri Publik'}
                   </span>
                   <span
                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                       isPublic
-                        ? 'bg-[#B7F36B]/20 text-[#B7F36B] border border-[#B7F36B]/40'
+                        ? isAdmin
+                          ? 'bg-[#B7F36B]/20 text-[#B7F36B] border border-[#B7F36B]/40'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                         : 'bg-[#101C32] text-[#E8ECF1]/60 border border-[#22375D]'
                     }`}
                   >
-                    {isPublic ? 'Publik' : 'Privat'}
+                    {isPublic
+                      ? isAdmin
+                        ? 'Publik Langsung'
+                        : 'Perlu Persetujuan Admin'
+                      : 'Privat'}
                   </span>
                 </div>
                 <p className="text-xs text-[#E8ECF1]/70 mt-0.5">
-                  {isPublic
-                    ? 'Karya & prompt ini akan tampil di halaman publik untuk semua pengunjung.'
-                    : 'Hanya tersimpan di Studio Pribadi Anda (disembunyikan dari halaman publik).'}
+                  {isAdmin
+                    ? isPublic
+                      ? 'Sebagai Admin, karya ini akan langsung tayang di Galeri Publik.'
+                      : 'Hanya tersimpan di Studio (disembunyikan dari galeri publik).'
+                    : isPublic
+                    ? 'Karya akan diajukan ke Admin/Superadmin untuk persetujuan sebelum tampil di Galeri Publik.'
+                    : 'Hanya tersimpan di Studio Pribadi Anda (tidak diajukan ke galeri publik).'}
                 </p>
               </div>
             </div>
@@ -586,7 +613,20 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
                   <span>Menyimpan...</span>
                 </>
               ) : (
-                <span>{editingPrompt ? 'Perbarui Prompt' : 'Simpan Sekarang'}</span>
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>
+                    {editingPrompt
+                      ? 'Simpan Perubahan'
+                      : isAdmin
+                      ? isPublic
+                        ? 'Publikasikan Sekarang'
+                        : 'Simpan ke Studio'
+                      : isPublic
+                      ? 'Ajukan & Simpan'
+                      : 'Simpan ke Studio'}
+                  </span>
+                </>
               )}
             </button>
           </div>

@@ -15,6 +15,8 @@ import {
   Crown,
   LayoutGrid,
   ExternalLink,
+  Clock,
+  User,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -35,12 +37,22 @@ export default function Sidebar({
   const { user, logout } = useAuth();
   const isAdminOrSuper = user?.role === 'superadmin' || user?.role === 'admin';
 
-  const studioNavItems = [
-    { id: 'all', label: 'Semua Prompt', icon: Sparkles, count: stats?.stats?.total ?? 0, color: 'text-[#B7F36B]' },
-    { id: 'image', label: 'Gambar (Images)', icon: ImageIcon, count: stats?.stats?.images ?? 0, color: 'text-[#E8ECF1]' },
-    { id: 'video', label: 'Video AI', icon: Video, count: stats?.stats?.videos ?? 0, color: 'text-[#B7F36B]' },
-    { id: 'favorite', label: 'Favorit Saya', icon: Star, count: stats?.stats?.favorites ?? 0, color: 'text-amber-400' },
-  ];
+  const studioNavItems = isAdminOrSuper
+    ? [
+        { id: 'all', label: 'Semua Prompt (Seluruh User)', icon: Sparkles, count: stats?.stats?.total ?? 0, color: 'text-[#B7F36B]' },
+        { id: 'pending', label: 'Menunggu Persetujuan', icon: Clock, count: stats?.stats?.pending ?? 0, color: 'text-amber-400', badgeClass: (stats?.stats?.pending ?? 0) > 0 ? 'bg-amber-400 text-[#101C32] font-extrabold animate-pulse' : '' },
+        { id: 'mine', label: 'Prompt Saya Saja', icon: User, count: stats?.stats?.mine_total ?? 0, color: 'text-[#E8ECF1]' },
+        { id: 'image', label: 'Gambar (Images)', icon: ImageIcon, count: stats?.stats?.images ?? 0, color: 'text-[#E8ECF1]' },
+        { id: 'video', label: 'Video AI', icon: Video, count: stats?.stats?.videos ?? 0, color: 'text-[#B7F36B]' },
+        { id: 'favorite', label: 'Favorit Saya', icon: Star, count: stats?.stats?.favorites ?? 0, color: 'text-amber-400' },
+      ]
+    : [
+        { id: 'all', label: 'Semua Prompt Saya', icon: Sparkles, count: stats?.stats?.total ?? 0, color: 'text-[#B7F36B]' },
+        { id: 'pending', label: 'Menunggu Persetujuan', icon: Clock, count: stats?.stats?.pending ?? 0, color: 'text-amber-400', badgeClass: (stats?.stats?.pending ?? 0) > 0 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : '' },
+        { id: 'image', label: 'Gambar (Images)', icon: ImageIcon, count: stats?.stats?.images ?? 0, color: 'text-[#E8ECF1]' },
+        { id: 'video', label: 'Video AI', icon: Video, count: stats?.stats?.videos ?? 0, color: 'text-[#B7F36B]' },
+        { id: 'favorite', label: 'Favorit Saya', icon: Star, count: stats?.stats?.favorites ?? 0, color: 'text-amber-400' },
+      ];
 
   return (
     <>
@@ -192,7 +204,9 @@ export default function Sidebar({
                         <span>{item.label}</span>
                       </div>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                        isActive
+                        item.badgeClass
+                          ? item.badgeClass
+                          : isActive
                           ? 'bg-[#B7F36B] text-[#101C32]'
                           : 'bg-[#101C32] text-[#9EACBF]'
                       }`}>

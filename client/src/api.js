@@ -107,6 +107,10 @@ export const api = {
 
   togglePublish: (id) => fetchWithAuth(`/prompts/${id}/publish`, { method: 'PATCH' }),
 
+  approvePrompt: (id) => fetchWithAuth(`/prompts/${id}/approve`, { method: 'PATCH' }),
+
+  rejectPrompt: (id) => fetchWithAuth(`/prompts/${id}/reject`, { method: 'PATCH' }),
+
   deletePrompt: (id) => fetchWithAuth(`/prompts/${id}`, { method: 'DELETE' }),
 
   // Stats

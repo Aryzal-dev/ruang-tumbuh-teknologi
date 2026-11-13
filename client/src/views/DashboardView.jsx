@@ -53,6 +53,8 @@ export default function DashboardView({ onNavigate }) {
       if (activeFilter === 'image') params.media_type = 'image';
       if (activeFilter === 'video') params.media_type = 'video';
       if (activeFilter === 'favorite') params.favorite = '1';
+      if (activeFilter === 'pending') params.publish_status = 'pending';
+      if (activeFilter === 'mine') params.scope = 'mine';
 
       if (selectedModel) params.ai_model = selectedModel;
       if (searchQuery.trim()) params.q = searchQuery.trim();
@@ -145,20 +147,78 @@ export default function DashboardView({ onNavigate }) {
     }
   };
 
-  // Handle Publish Toggle
+  // Handle Publish Toggle / Request
   const handleTogglePublish = async (id) => {
     try {
       const res = await api.togglePublish(id);
       setPrompts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, is_public: res.is_public } : p))
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, is_public: res.is_public, publish_status: res.publish_status }
+            : p
+        )
       );
       if (selectedPrompt && selectedPrompt.id === id) {
-        setSelectedPrompt((prev) => ({ ...prev, is_public: res.is_public }));
+        setSelectedPrompt((prev) => ({
+          ...prev,
+          is_public: res.is_public,
+          publish_status: res.publish_status,
+        }));
       }
       showToast(res.message);
       loadStats();
     } catch (err) {
       alert(err.message || 'Gagal mengubah status publikasi.');
+    }
+  };
+
+  // Handle Approve (Superadmin / Admin)
+  const handleApprovePrompt = async (id) => {
+    try {
+      const res = await api.approvePrompt(id);
+      setPrompts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, is_public: 1, publish_status: 'approved' }
+            : p
+        )
+      );
+      if (selectedPrompt && selectedPrompt.id === id) {
+        setSelectedPrompt((prev) => ({
+          ...prev,
+          is_public: 1,
+          publish_status: 'approved',
+        }));
+      }
+      showToast(res.message);
+      loadStats();
+    } catch (err) {
+      alert(err.message || 'Gagal menyetujui publikasi prompt.');
+    }
+  };
+
+  // Handle Reject (Superadmin / Admin)
+  const handleRejectPrompt = async (id) => {
+    try {
+      const res = await api.rejectPrompt(id);
+      setPrompts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, is_public: 0, publish_status: 'rejected' }
+            : p
+        )
+      );
+      if (selectedPrompt && selectedPrompt.id === id) {
+        setSelectedPrompt((prev) => ({
+          ...prev,
+          is_public: 0,
+          publish_status: 'rejected',
+        }));
+      }
+      showToast(res.message);
+      loadStats();
+    } catch (err) {
+      alert(err.message || 'Gagal menolak publikasi prompt.');
     }
   };
 
@@ -371,9 +431,12 @@ export default function DashboardView({ onNavigate }) {
                     <PromptCard
                       key={prompt.id}
                       prompt={prompt}
+                      isAdmin={user?.role === 'superadmin' || user?.role === 'admin'}
                       onSelect={(p) => setSelectedPrompt(p)}
                       onToggleFavorite={handleToggleFavorite}
                       onTogglePublish={handleTogglePublish}
+                      onApprove={handleApprovePrompt}
+                      onReject={handleRejectPrompt}
                     />
                   ))}
                 </div>
@@ -413,6 +476,7 @@ export default function DashboardView({ onNavigate }) {
       {selectedPrompt && (
         <LightboxModal
           prompt={selectedPrompt}
+          isAdmin={user?.role === 'superadmin' || user?.role === 'admin'}
           onClose={() => setSelectedPrompt(null)}
           onEdit={(promptToEdit) => {
             setEditingPrompt(promptToEdit);
@@ -422,6 +486,8 @@ export default function DashboardView({ onNavigate }) {
           onDelete={handleDeletePrompt}
           onToggleFavorite={handleToggleFavorite}
           onTogglePublish={handleTogglePublish}
+          onApprove={handleApprovePrompt}
+          onReject={handleRejectPrompt}
           onNavigate={handleNavigateLightbox}
           hasPrev={hasPrev}
           hasNext={hasNext}

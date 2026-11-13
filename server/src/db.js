@@ -71,6 +71,13 @@ export function initDatabase() {
     db.exec("ALTER TABLE prompts ADD COLUMN is_public INTEGER DEFAULT 1;");
   }
 
+  // Ensure publish_status column exists in prompts table ('approved', 'pending', 'draft', 'rejected')
+  const hasPublishStatus = promptColumns.some((col) => col.name === 'publish_status');
+  if (!hasPublishStatus) {
+    db.exec("ALTER TABLE prompts ADD COLUMN publish_status TEXT DEFAULT 'approved';");
+    db.exec("UPDATE prompts SET publish_status = CASE WHEN is_public = 1 THEN 'approved' ELSE 'draft' END;");
+  }
+
   // Ensure superadmin exists with role 'superadmin'
   const superadminExists = db.prepare('SELECT id, role FROM users WHERE username = ?').get('superadmin');
   let superadminId = superadminExists ? superadminExists.id : null;

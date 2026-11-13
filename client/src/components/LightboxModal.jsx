@@ -18,6 +18,9 @@ import {
   User,
   Globe,
   Lock,
+  Clock,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,6 +31,9 @@ export default function LightboxModal({
   onDelete,
   onToggleFavorite,
   onTogglePublish,
+  onApprove,
+  onReject,
+  isAdmin = false,
   onNavigate,
   hasPrev,
   hasNext,
@@ -193,13 +199,36 @@ export default function LightboxModal({
                 {prompt.is_public !== undefined && (
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold border ${
-                      prompt.is_public === 1
+                      prompt.publish_status === 'pending'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                        : prompt.publish_status === 'rejected'
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                        : prompt.is_public === 1
                         ? 'bg-[#B7F36B]/15 text-[#B7F36B] border-[#B7F36B]/40'
-                        : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                        : 'bg-[#101C32] text-[#E8ECF1]/70 border-[#22375D]'
                     }`}
                   >
-                    {prompt.is_public === 1 ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                    <span>{prompt.is_public === 1 ? 'Publik' : 'Privat'}</span>
+                    {prompt.publish_status === 'pending' ? (
+                      <>
+                        <Clock className="w-3 h-3 text-amber-300" />
+                        <span>Menunggu Persetujuan</span>
+                      </>
+                    ) : prompt.publish_status === 'rejected' ? (
+                      <>
+                        <XCircle className="w-3 h-3 text-rose-400" />
+                        <span>Ditolak Admin</span>
+                      </>
+                    ) : prompt.is_public === 1 ? (
+                      <>
+                        <Globe className="w-3 h-3" />
+                        <span>Publik</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        <span>Privat</span>
+                      </>
+                    )}
                   </span>
                 )}
                 {prompt.author_name && (
@@ -224,6 +253,39 @@ export default function LightboxModal({
                 {prompt.title}
               </h2>
             </div>
+
+            {/* Superadmin / Admin Approval Action Banner */}
+            {isAdmin && prompt.publish_status === 'pending' && onApprove && onReject && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+                <div>
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 font-['Plus_Jakarta_Sans']">
+                    <Clock className="w-4 h-4 text-amber-300 animate-pulse" />
+                    <span>Menunggu Persetujuan Publikasi</span>
+                  </span>
+                  <p className="text-[11px] text-[#E8ECF1]/70 mt-0.5">
+                    User mengajukan prompt ini untuk tampil di Galeri Publik.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => onApprove(prompt.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#B7F36B] hover:bg-[#a2e852] text-[#101C32] text-xs font-bold shadow-md shadow-[#B7F36B]/20 transition-all cursor-pointer"
+                    title="Setujui dan tayangkan di Galeri Publik"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Setujui</span>
+                  </button>
+                  <button
+                    onClick={() => onReject(prompt.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-semibold transition-all cursor-pointer"
+                    title="Tolak permohonan publikasi"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Tolak</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Main Prompt Box with One-Click Copy */}
             <div className="space-y-2">
@@ -380,14 +442,42 @@ export default function LightboxModal({
                   <button
                     onClick={() => onTogglePublish(prompt.id)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                      prompt.is_public === 1
+                      prompt.publish_status === 'pending'
+                        ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
+                        : prompt.is_public === 1
                         ? 'bg-[#B7F36B]/15 hover:bg-[#B7F36B]/25 text-[#B7F36B] border-[#B7F36B]/30'
-                        : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        : 'bg-[#101C32] hover:bg-[#182845] text-[#E8ECF1] border border-[#22375D]'
                     }`}
-                    title={prompt.is_public === 1 ? 'Klik untuk jadikan privat' : 'Klik untuk publikasikan ke galeri publik'}
+                    title={
+                      prompt.publish_status === 'pending'
+                        ? isAdmin
+                          ? 'Prompt ini sedang menunggu persetujuan Admin'
+                          : 'Klik untuk membatalkan pengajuan publikasi'
+                        : prompt.is_public === 1
+                        ? 'Klik untuk jadikan privat'
+                        : isAdmin
+                        ? 'Klik untuk publikasikan langsung ke galeri publik'
+                        : 'Klik untuk mengajukan publikasi ke Admin'
+                    }
                   >
-                    {prompt.is_public === 1 ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                    <span>{prompt.is_public === 1 ? 'Publik' : 'Privat'}</span>
+                    {prompt.publish_status === 'pending' ? (
+                      <Clock className="w-3.5 h-3.5 text-amber-300" />
+                    ) : prompt.is_public === 1 ? (
+                      <Globe className="w-3.5 h-3.5" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {prompt.publish_status === 'pending'
+                        ? isAdmin
+                          ? 'Pending'
+                          : 'Batal Ajukan'
+                        : prompt.is_public === 1
+                        ? 'Publik'
+                        : isAdmin
+                        ? 'Jadikan Publik'
+                        : 'Ajukan Publik'}
+                    </span>
                   </button>
                 )}
 

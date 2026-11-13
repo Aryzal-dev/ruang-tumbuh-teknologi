@@ -8,27 +8,37 @@ router.use(authMiddleware);
 router.get('/', (req, res) => {
   try {
     const userId = req.user.id;
-
-    const totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
-    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
-    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
-    const totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
-    const totalPublished = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1').get(userId).count;
-
     const isSuperOrAdmin = req.user.role === 'superadmin' || req.user.role === 'admin';
-    const systemTotal = isSuperOrAdmin ? db.prepare('SELECT COUNT(*) as count FROM prompts').get().count : totalPrompts;
-    const systemPublished = isSuperOrAdmin ? db.prepare('SELECT COUNT(*) as count FROM prompts WHERE is_public = 1').get().count : totalPublished;
 
-    const models = db.prepare(`
-      SELECT ai_model, COUNT(*) as count
-      FROM prompts
-      WHERE user_id = ? AND ai_model IS NOT NULL AND ai_model != ''
-      GROUP BY ai_model
-      ORDER BY count DESC
-    `).all(userId);
+    let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending;
+
+    if (isSuperOrAdmin) {
+      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts').get().count;
+      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image'").get().count;
+      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video'").get().count;
+      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
+      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
+      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get().count;
+    } else {
+      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
+      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
+      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
+      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
+      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId).count;
+      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId).count;
+    }
+
+    const modelsQuery = isSuperOrAdmin
+      ? `SELECT ai_model, COUNT(*) as count FROM prompts WHERE ai_model IS NOT NULL AND ai_model != '' GROUP BY ai_model ORDER BY count DESC`
+      : `SELECT ai_model, COUNT(*) as count FROM prompts WHERE user_id = ? AND ai_model IS NOT NULL AND ai_model != '' GROUP BY ai_model ORDER BY count DESC`;
+    const models = isSuperOrAdmin ? db.prepare(modelsQuery).all() : db.prepare(modelsQuery).all(userId);
 
     // Get unique tags
-    const allTagsRows = db.prepare('SELECT tags FROM prompts WHERE user_id = ? AND tags IS NOT NULL AND tags != ""').all(userId);
+    const tagsQuery = isSuperOrAdmin
+      ? `SELECT tags FROM prompts WHERE tags IS NOT NULL AND tags != ''`
+      : `SELECT tags FROM prompts WHERE user_id = ? AND tags IS NOT NULL AND tags != ''`;
+    const allTagsRows = isSuperOrAdmin ? db.prepare(tagsQuery).all() : db.prepare(tagsQuery).all(userId);
+
     const tagSet = new Set();
     allTagsRows.forEach(row => {
       if (row.tags) {
@@ -46,8 +56,7 @@ router.get('/', (req, res) => {
         videos: totalVideos,
         favorites: totalFavorites,
         published: totalPublished,
-        system_total: systemTotal,
-        system_published: systemPublished,
+        pending: totalPending,
       },
       models,
       tags: Array.from(tagSet).sort(),

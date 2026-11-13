@@ -110,8 +110,9 @@ router.use(authMiddleware);
 router.get('/', (req, res) => {
   try {
     const userId = req.user.id;
-    const userRole = req.user.role;
-    const { media_type, favorite, ai_model, q, sort = 'newest', scope = 'mine', is_public } = req.query;
+    const userRole = req.user.role || 'user';
+    const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin';
+    const { media_type, favorite, ai_model, q, sort = 'newest', scope, publish_status, is_public } = req.query;
 
     let sql = `
       SELECT 
@@ -120,17 +121,27 @@ router.get('/', (req, res) => {
         u.avatar as author_avatar,
         u.role as author_role
       FROM prompts p
-      JOIN users u ON p.user_id = u.id
+      LEFT JOIN users u ON p.user_id = u.id
       WHERE 1=1
     `;
     const params = [];
 
-    // Scope: mine vs all (only superadmin/admin can view scope=all in private dashboard)
-    if (scope === 'all' && (userRole === 'superadmin' || userRole === 'admin')) {
-      // no user_id restriction
+    // Role-based visibility:
+    // Superadmin and Admin see ALL prompts by default, or their own if scope === 'mine'
+    if (isSuperOrAdmin) {
+      if (scope === 'mine') {
+        sql += ' AND p.user_id = ?';
+        params.push(userId);
+      }
     } else {
+      // Normal user can only see their own prompts
       sql += ' AND p.user_id = ?';
       params.push(userId);
+    }
+
+    if (publish_status && publish_status !== 'all') {
+      sql += ' AND p.publish_status = ?';
+      params.push(publish_status);
     }
 
     if (is_public !== undefined && is_public !== '') {
@@ -154,8 +165,8 @@ router.get('/', (req, res) => {
 
     if (q && q.trim()) {
       const searchTerm = `%${q.trim()}%`;
-      sql += ' AND (p.title LIKE ? OR p.prompt_text LIKE ? OR p.negative_prompt LIKE ? OR p.tags LIKE ?)';
-      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      sql += ' AND (p.title LIKE ? OR p.prompt_text LIKE ? OR p.negative_prompt LIKE ? OR p.tags LIKE ? OR u.username LIKE ?)';
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (sort === 'oldest') {
@@ -168,11 +179,24 @@ router.get('/', (req, res) => {
 
     const rows = db.prepare(sql).all(...params);
 
-    const totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
-    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
-    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
-    const totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
-    const totalPublished = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1').get(userId).count;
+    // Compute stats
+    let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending;
+
+    if (isSuperOrAdmin) {
+      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts').get().count;
+      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image'").get().count;
+      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video'").get().count;
+      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
+      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
+      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get().count;
+    } else {
+      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
+      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
+      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
+      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
+      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId).count;
+      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId).count;
+    }
 
     res.json({
       prompts: rows,
@@ -182,6 +206,7 @@ router.get('/', (req, res) => {
         videos: totalVideos,
         favorites: totalFavorites,
         published: totalPublished,
+        pending: totalPending,
       },
     });
   } catch (err) {
@@ -257,15 +282,37 @@ router.post('/', upload.single('media_file'), (req, res) => {
       }
     }
 
-    // Default to published (1) unless explicitly set to 0 or false
-    const finalIsPublic =
-      is_public === false || is_public === 'false' || is_public === 0 || is_public === '0' ? 0 : 1;
+    // Determine publication status based on role and request
+    const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin';
+    const wantsPublish = is_public === true || is_public === 'true' || is_public === 1 || is_public === '1';
+
+    let finalIsPublic = 0;
+    let finalPublishStatus = 'draft';
+
+    if (isSuperOrAdmin) {
+      if (wantsPublish) {
+        finalIsPublic = 1;
+        finalPublishStatus = 'approved';
+      } else {
+        finalIsPublic = 0;
+        finalPublishStatus = 'draft';
+      }
+    } else {
+      // Normal user needs admin approval to publish
+      if (wantsPublish) {
+        finalIsPublic = 0;
+        finalPublishStatus = 'pending';
+      } else {
+        finalIsPublic = 0;
+        finalPublishStatus = 'draft';
+      }
+    }
 
     const stmt = db.prepare(`
       INSERT INTO prompts (
         user_id, title, prompt_text, negative_prompt, media_type, media_url,
-        ai_model, aspect_ratio, seed, cfg_scale, steps, sampler, tags, is_favorite, is_public
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ai_model, aspect_ratio, seed, cfg_scale, steps, sampler, tags, is_favorite, is_public, publish_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -283,7 +330,8 @@ router.post('/', upload.single('media_file'), (req, res) => {
       sampler || null,
       tags || '',
       0,
-      finalIsPublic
+      finalIsPublic,
+      finalPublishStatus
     );
 
     const newPrompt = db.prepare(`
@@ -297,7 +345,13 @@ router.post('/', upload.single('media_file'), (req, res) => {
       WHERE p.id = ?
     `).get(result.lastInsertRowid);
 
-    res.status(201).json({ message: 'Prompt berhasil disimpan!', prompt: newPrompt });
+    const successMessage = finalPublishStatus === 'approved'
+      ? 'Prompt berhasil disimpan dan langsung dipublikasikan!'
+      : finalPublishStatus === 'pending'
+      ? 'Prompt berhasil disimpan dan diajukan ke admin untuk persetujuan publikasi.'
+      : 'Prompt berhasil disimpan di studio pribadi.';
+
+    res.status(201).json({ message: successMessage, prompt: newPrompt });
   } catch (err) {
     console.error('Create prompt error:', err);
     res.status(500).json({ error: 'Gagal menyimpan prompt baru.' });
@@ -309,11 +363,12 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = req.user.role || 'user';
+    const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin';
 
     // Superadmin and admin can edit any prompt, normal user can only edit their own
     let existing;
-    if (userRole === 'superadmin' || userRole === 'admin') {
+    if (isSuperOrAdmin) {
       existing = db.prepare('SELECT * FROM prompts WHERE id = ?').get(promptId);
     } else {
       existing = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
@@ -357,9 +412,30 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
     }
 
     let finalIsPublic = existing.is_public ?? 1;
+    let finalPublishStatus = existing.publish_status ?? (finalIsPublic === 1 ? 'approved' : 'draft');
+
     if (is_public !== undefined) {
-      finalIsPublic =
-        is_public === false || is_public === 'false' || is_public === 0 || is_public === '0' ? 0 : 1;
+      const wantsPublish = is_public === true || is_public === 'true' || is_public === 1 || is_public === '0' ? (is_public === 1 || is_public === '1' || is_public === true || is_public === 'true') : false;
+
+      if (isSuperOrAdmin) {
+        finalIsPublic = wantsPublish ? 1 : 0;
+        finalPublishStatus = wantsPublish ? 'approved' : 'draft';
+      } else {
+        // Normal user
+        if (wantsPublish) {
+          // If already approved, keep approved. Otherwise request approval
+          if (existing.publish_status !== 'approved') {
+            finalIsPublic = 0;
+            finalPublishStatus = 'pending';
+          } else {
+            finalIsPublic = 1;
+            finalPublishStatus = 'approved';
+          }
+        } else {
+          finalIsPublic = 0;
+          finalPublishStatus = 'draft';
+        }
+      }
     }
 
     const stmt = db.prepare(`
@@ -377,6 +453,7 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
         sampler = ?,
         tags = ?,
         is_public = ?,
+        publish_status = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
@@ -395,6 +472,7 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
       sampler !== undefined ? sampler : existing.sampler,
       tags !== undefined ? tags : existing.tags,
       finalIsPublic,
+      finalPublishStatus,
       promptId
     );
 
@@ -409,38 +487,124 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
       WHERE p.id = ?
     `).get(promptId);
 
-    res.json({ message: 'Prompt berhasil diperbarui!', prompt: updated });
+    const updateMsg = finalPublishStatus === 'pending'
+      ? 'Prompt berhasil diperbarui dan diajukan ke admin untuk persetujuan publikasi.'
+      : 'Prompt berhasil diperbarui!';
+
+    res.json({ message: updateMsg, prompt: updated });
   } catch (err) {
     console.error('Update prompt error:', err);
     res.status(500).json({ error: 'Gagal memperbarui prompt.' });
   }
 });
 
-// PATCH /api/prompts/:id/publish - Quick toggle publish status
+// PATCH /api/prompts/:id/approve - Setujui publikasi prompt (Superadmin & Admin only)
+router.patch('/:id/approve', (req, res) => {
+  try {
+    const promptId = req.params.id;
+    const userRole = req.user.role || 'user';
+
+    if (userRole !== 'superadmin' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Akses ditolak. Hanya Admin dan Superadmin yang berhak menyetujui publikasi.' });
+    }
+
+    const existing = db.prepare('SELECT id, title FROM prompts WHERE id = ?').get(promptId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Prompt tidak ditemukan.' });
+    }
+
+    db.prepare("UPDATE prompts SET is_public = 1, publish_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+
+    res.json({
+      message: `Prompt "${existing.title}" berhasil disetujui & tayang di galeri publik!`,
+      is_public: 1,
+      publish_status: 'approved',
+    });
+  } catch (err) {
+    console.error('Approve prompt error:', err);
+    res.status(500).json({ error: 'Gagal menyetujui publikasi prompt.' });
+  }
+});
+
+// PATCH /api/prompts/:id/reject - Tolak publikasi prompt (Superadmin & Admin only)
+router.patch('/:id/reject', (req, res) => {
+  try {
+    const promptId = req.params.id;
+    const userRole = req.user.role || 'user';
+
+    if (userRole !== 'superadmin' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Akses ditolak. Hanya Admin dan Superadmin yang berhak menolak publikasi.' });
+    }
+
+    const existing = db.prepare('SELECT id, title FROM prompts WHERE id = ?').get(promptId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Prompt tidak ditemukan.' });
+    }
+
+    db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+
+    res.json({
+      message: `Publikasi prompt "${existing.title}" ditolak dan statusnya menjadi privat.`,
+      is_public: 0,
+      publish_status: 'rejected',
+    });
+  } catch (err) {
+    console.error('Reject prompt error:', err);
+    res.status(500).json({ error: 'Gagal menolak publikasi prompt.' });
+  }
+});
+
+// PATCH /api/prompts/:id/publish - Quick toggle / request publish
 router.patch('/:id/publish', (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = req.user.role || 'user';
+    const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin';
 
     let existing;
-    if (userRole === 'superadmin' || userRole === 'admin') {
-      existing = db.prepare('SELECT id, is_public FROM prompts WHERE id = ?').get(promptId);
+    if (isSuperOrAdmin) {
+      existing = db.prepare('SELECT id, title, is_public, publish_status FROM prompts WHERE id = ?').get(promptId);
     } else {
-      existing = db.prepare('SELECT id, is_public FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
+      existing = db.prepare('SELECT id, title, is_public, publish_status FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
     }
 
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan atau Anda tidak memiliki izin.' });
     }
 
-    const newPublic = existing.is_public === 1 ? 0 : 1;
-    db.prepare('UPDATE prompts SET is_public = ? WHERE id = ?').run(newPublic, promptId);
+    if (isSuperOrAdmin) {
+      // Superadmin / Admin can directly approve or make private
+      const nextPublic = existing.is_public === 1 && existing.publish_status === 'approved' ? 0 : 1;
+      const nextStatus = nextPublic === 1 ? 'approved' : 'draft';
 
-    res.json({
-      message: newPublic ? 'Prompt berhasil dipublikasikan ke galeri publik!' : 'Prompt diubah menjadi privat (disembunyikan dari galeri publik).',
-      is_public: newPublic,
-    });
+      db.prepare('UPDATE prompts SET is_public = ?, publish_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextPublic, nextStatus, promptId);
+
+      return res.json({
+        message: nextPublic === 1 ? 'Prompt berhasil dipublikasikan ke galeri publik!' : 'Prompt diubah menjadi privat.',
+        is_public: nextPublic,
+        publish_status: nextStatus,
+      });
+    } else {
+      // Normal user:
+      // If currently approved or pending -> withdraw to draft
+      // If currently draft or rejected -> request approval
+      if (existing.publish_status === 'approved' || existing.publish_status === 'pending') {
+        db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+        return res.json({
+          message: 'Prompt ditarik kembali menjadi privat.',
+          is_public: 0,
+          publish_status: 'draft',
+        });
+      } else {
+        db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+        return res.json({
+          message: 'Pengajuan publikasi berhasil dikirim! Menunggu persetujuan admin.',
+          is_public: 0,
+          publish_status: 'pending',
+        });
+      }
+    }
   } catch (err) {
     console.error('Toggle publish error:', err);
     res.status(500).json({ error: 'Gagal mengubah status publikasi prompt.' });

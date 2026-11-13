@@ -8,9 +8,22 @@ import {
   Video as VideoIcon,
   Cpu,
   Layers,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Globe,
+  Lock,
 } from 'lucide-react';
 
-export default function PromptCard({ prompt, onSelect, onToggleFavorite, onTogglePublish }) {
+export default function PromptCard({
+  prompt,
+  onSelect,
+  onToggleFavorite,
+  onTogglePublish,
+  onApprove,
+  onReject,
+  isAdmin = false,
+}) {
   const [copied, setCopied] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -116,23 +129,35 @@ export default function PromptCard({ prompt, onSelect, onToggleFavorite, onToggl
               type="button"
               onClick={handlePublish}
               title={
-                onTogglePublish
-                  ? prompt.is_public === 1
-                    ? 'Status: Publik (Klik untuk jadikan Privat)'
-                    : 'Status: Privat (Klik untuk Publikasikan ke Galeri Publik)'
+                prompt.publish_status === 'pending'
+                  ? isAdmin
+                    ? 'Menunggu Persetujuan Admin'
+                    : 'Pengajuan sedang menunggu persetujuan Admin (Klik untuk batalkan pengajuan)'
+                  : prompt.publish_status === 'rejected'
+                  ? 'Pengajuan ditolak oleh Admin (Klik untuk ajukan ulang)'
                   : prompt.is_public === 1
-                  ? 'Publik'
-                  : 'Privat'
+                  ? 'Status: Publik (Klik untuk jadikan Privat)'
+                  : 'Status: Privat (Klik untuk publikasikan)'
               }
               className={`px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-md border transition-all ${
                 onTogglePublish ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
               } ${
-                prompt.is_public === 1
+                prompt.publish_status === 'pending'
+                  ? 'bg-amber-500/25 text-amber-300 border-amber-500/50 animate-pulse'
+                  : prompt.publish_status === 'rejected'
+                  ? 'bg-rose-500/25 text-rose-300 border-rose-500/40'
+                  : prompt.is_public === 1
                   ? 'bg-[#B7F36B]/20 text-[#B7F36B] border-[#B7F36B]/40 hover:bg-[#B7F36B]/30'
-                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                  : 'bg-[#101C32]/85 text-[#E8ECF1]/70 border-[#22375D] hover:text-white'
               }`}
             >
-              {prompt.is_public === 1 ? '🌐 Publik' : '🔒 Privat'}
+              {prompt.publish_status === 'pending'
+                ? '⏳ Menunggu Persetujuan'
+                : prompt.publish_status === 'rejected'
+                ? '❌ Ditolak'
+                : prompt.is_public === 1
+                ? '🌐 Publik'
+                : '🔒 Privat'}
             </button>
           )}
         </div>
@@ -190,6 +215,45 @@ export default function PromptCard({ prompt, onSelect, onToggleFavorite, onToggl
               {prompt.prompt_text}
             </p>
           </div>
+
+          {/* Quick Approval Action Bar (Superadmin & Admin) */}
+          {isAdmin && prompt.publish_status === 'pending' && onApprove && onReject && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="mt-2.5 p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2"
+            >
+              <span className="text-[10px] font-semibold text-amber-300 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-amber-300 animate-pulse" />
+                <span>Persetujuan:</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onApprove(prompt.id);
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#B7F36B] hover:bg-[#a5e954] text-[#101C32] shadow-xs cursor-pointer transition-colors"
+                  title="Setujui dan tayangkan di Galeri Publik"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Setujui</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReject(prompt.id);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 cursor-pointer transition-colors"
+                  title="Tolak permohonan publikasi"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Tolak</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bottom Actions: One-Click Copy & Tags */}
