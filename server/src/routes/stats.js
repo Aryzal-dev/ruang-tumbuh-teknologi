@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authMiddleware);
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
     const isSuperOrAdmin = req.user.role === 'superadmin' || req.user.role === 'admin';
@@ -13,31 +13,31 @@ router.get('/', (req, res) => {
     let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending;
 
     if (isSuperOrAdmin) {
-      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts').get().count;
-      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image'").get().count;
-      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video'").get().count;
-      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
-      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
-      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get().count;
+      totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts').get())?.count || 0;
+      totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image'").get())?.count || 0;
+      totalVideos = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video'").get())?.count || 0;
+      totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
+      totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
+      totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get())?.count || 0;
     } else {
-      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
-      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
-      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
-      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
-      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId).count;
-      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId).count;
+      totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId))?.count || 0;
+      totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId))?.count || 0;
+      totalVideos = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId))?.count || 0;
+      totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
+      totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId))?.count || 0;
+      totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId))?.count || 0;
     }
 
     const modelsQuery = isSuperOrAdmin
       ? `SELECT ai_model, COUNT(*) as count FROM prompts WHERE ai_model IS NOT NULL AND ai_model != '' GROUP BY ai_model ORDER BY count DESC`
       : `SELECT ai_model, COUNT(*) as count FROM prompts WHERE user_id = ? AND ai_model IS NOT NULL AND ai_model != '' GROUP BY ai_model ORDER BY count DESC`;
-    const models = isSuperOrAdmin ? db.prepare(modelsQuery).all() : db.prepare(modelsQuery).all(userId);
+    const models = isSuperOrAdmin ? await db.prepare(modelsQuery).all() : await db.prepare(modelsQuery).all(userId);
 
     // Get unique tags
     const tagsQuery = isSuperOrAdmin
       ? `SELECT tags FROM prompts WHERE tags IS NOT NULL AND tags != ''`
       : `SELECT tags FROM prompts WHERE user_id = ? AND tags IS NOT NULL AND tags != ''`;
-    const allTagsRows = isSuperOrAdmin ? db.prepare(tagsQuery).all() : db.prepare(tagsQuery).all(userId);
+    const allTagsRows = isSuperOrAdmin ? await db.prepare(tagsQuery).all() : await db.prepare(tagsQuery).all(userId);
 
     const tagSet = new Set();
     allTagsRows.forEach(row => {

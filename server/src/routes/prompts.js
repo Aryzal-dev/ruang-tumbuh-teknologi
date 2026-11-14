@@ -17,7 +17,7 @@ const router = express.Router();
 // ==========================================
 
 // GET /api/prompts/public - Public gallery of published prompts
-router.get('/public', (req, res) => {
+router.get('/public', async (req, res) => {
   try {
     const { media_type, ai_model, q, sort = 'newest' } = req.query;
 
@@ -58,15 +58,15 @@ router.get('/public', (req, res) => {
       sql += ' ORDER BY p.created_at DESC';
     }
 
-    const rows = db.prepare(sql).all(...params);
+    const rows = await db.prepare(sql).all(...params);
 
     // Compute public stats for published items only
-    const totalPrompts = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
-    const totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image' AND (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
-    const totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video' AND (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
-    const totalCreators = db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
+    const totalPrompts = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
+    const totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image' AND (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
+    const totalVideos = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video' AND (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
+    const totalCreators = (await db.prepare("SELECT COUNT(DISTINCT user_id) as count FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
 
-    const models = db.prepare(`
+    const models = await db.prepare(`
       SELECT ai_model, COUNT(*) as count
       FROM prompts
       WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL) AND ai_model IS NOT NULL AND ai_model != ''
@@ -74,7 +74,7 @@ router.get('/public', (req, res) => {
       ORDER BY count DESC
     `).all();
 
-    const allTagsRows = db.prepare(`SELECT tags FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL) AND tags IS NOT NULL AND tags != ''`).all();
+    const allTagsRows = await db.prepare(`SELECT tags FROM prompts WHERE (is_public = 1 OR is_public = '1') AND (publish_status = 'approved' OR publish_status IS NULL) AND tags IS NOT NULL AND tags != ''`).all();
     const tagSet = new Set();
     allTagsRows.forEach(row => {
       if (row.tags) {
@@ -108,7 +108,7 @@ router.get('/public', (req, res) => {
 router.use(authMiddleware);
 
 // GET /api/prompts - List user's prompts (or all if admin requested)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
     const userRole = req.user.role || 'user';
@@ -178,25 +178,25 @@ router.get('/', (req, res) => {
       sql += ' ORDER BY p.created_at DESC';
     }
 
-    const rows = db.prepare(sql).all(...params);
+    const rows = await db.prepare(sql).all(...params);
 
     // Compute stats
     let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending;
 
     if (isSuperOrAdmin) {
-      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts').get().count;
-      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image'").get().count;
-      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video'").get().count;
-      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
-      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get().count;
-      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get().count;
+      totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts').get())?.count || 0;
+      totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'image'").get())?.count || 0;
+      totalVideos = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE media_type = 'video'").get())?.count || 0;
+      totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
+      totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
+      totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get())?.count || 0;
     } else {
-      totalPrompts = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId).count;
-      totalImages = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId).count;
-      totalVideos = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId).count;
-      totalFavorites = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId).count;
-      totalPublished = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId).count;
-      totalPending = db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId).count;
+      totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId))?.count || 0;
+      totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId))?.count || 0;
+      totalVideos = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'video'").get(userId))?.count || 0;
+      totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
+      totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId))?.count || 0;
+      totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId))?.count || 0;
     }
 
     res.json({
@@ -217,9 +217,9 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/prompts/:id - Detail
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const row = db.prepare(`
+    const row = await db.prepare(`
       SELECT 
         p.*,
         u.username as author_name,
@@ -241,7 +241,7 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/prompts - Create new prompt
-router.post('/', upload.single('media_file'), (req, res) => {
+router.post('/', upload.single('media_file'), async (req, res) => {
   try {
     const userId = req.user.id;
     const {
@@ -317,7 +317,7 @@ router.post('/', upload.single('media_file'), (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const result = stmt.run(
+    const result = await stmt.run(
       userId,
       title.trim(),
       prompt_text.trim(),
@@ -336,7 +336,7 @@ router.post('/', upload.single('media_file'), (req, res) => {
       finalPublishStatus
     );
 
-    const newPrompt = db.prepare(`
+    const newPrompt = await db.prepare(`
       SELECT 
         p.*,
         u.username as author_name,
@@ -361,7 +361,7 @@ router.post('/', upload.single('media_file'), (req, res) => {
 });
 
 // PUT /api/prompts/:id - Update prompt
-router.put('/:id', upload.single('media_file'), (req, res) => {
+router.put('/:id', upload.single('media_file'), async (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.user.id;
@@ -371,9 +371,9 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
     // Superadmin and admin can edit any prompt, normal user can only edit their own
     let existing;
     if (isSuperOrAdmin) {
-      existing = db.prepare('SELECT * FROM prompts WHERE id = ?').get(promptId);
+      existing = await db.prepare('SELECT * FROM prompts WHERE id = ?').get(promptId);
     } else {
-      existing = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
+      existing = await db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
     }
 
     if (!existing) {
@@ -460,7 +460,7 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
       WHERE id = ?
     `);
 
-    stmt.run(
+    await stmt.run(
       title !== undefined ? title.trim() : existing.title,
       prompt_text !== undefined ? prompt_text.trim() : existing.prompt_text,
       negative_prompt !== undefined ? negative_prompt.trim() : existing.negative_prompt,
@@ -478,7 +478,7 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
       promptId
     );
 
-    const updated = db.prepare(`
+    const updated = await db.prepare(`
       SELECT 
         p.*,
         u.username as author_name,
@@ -501,7 +501,7 @@ router.put('/:id', upload.single('media_file'), (req, res) => {
 });
 
 // PATCH /api/prompts/:id/approve - Setujui publikasi prompt (Superadmin & Admin only)
-router.patch('/:id/approve', (req, res) => {
+router.patch('/:id/approve', async (req, res) => {
   try {
     const promptId = req.params.id;
     const userRole = req.user.role || 'user';
@@ -510,12 +510,12 @@ router.patch('/:id/approve', (req, res) => {
       return res.status(403).json({ error: 'Akses ditolak. Hanya Admin dan Superadmin yang berhak menyetujui publikasi.' });
     }
 
-    const existing = db.prepare('SELECT id, title FROM prompts WHERE id = ?').get(promptId);
+    const existing = await db.prepare('SELECT id, title FROM prompts WHERE id = ?').get(promptId);
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan.' });
     }
 
-    db.prepare("UPDATE prompts SET is_public = 1, publish_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+    await db.prepare("UPDATE prompts SET is_public = 1, publish_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
 
     res.json({
       message: `Prompt "${existing.title}" berhasil disetujui & tayang di galeri publik!`,
@@ -529,7 +529,7 @@ router.patch('/:id/approve', (req, res) => {
 });
 
 // PATCH /api/prompts/:id/reject - Tolak publikasi prompt (Superadmin & Admin only)
-router.patch('/:id/reject', (req, res) => {
+router.patch('/:id/reject', async (req, res) => {
   try {
     const promptId = req.params.id;
     const userRole = req.user.role || 'user';
@@ -538,12 +538,12 @@ router.patch('/:id/reject', (req, res) => {
       return res.status(403).json({ error: 'Akses ditolak. Hanya Admin dan Superadmin yang berhak menolak publikasi.' });
     }
 
-    const existing = db.prepare('SELECT id, title FROM prompts WHERE id = ?').get(promptId);
+    const existing = await db.prepare('SELECT id, title FROM prompts WHERE id = ?').get(promptId);
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan.' });
     }
 
-    db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+    await db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
 
     res.json({
       message: `Publikasi prompt "${existing.title}" ditolak dan statusnya menjadi privat.`,
@@ -557,7 +557,7 @@ router.patch('/:id/reject', (req, res) => {
 });
 
 // PATCH /api/prompts/:id/publish - Quick toggle / request publish
-router.patch('/:id/publish', (req, res) => {
+router.patch('/:id/publish', async (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.user.id;
@@ -566,9 +566,9 @@ router.patch('/:id/publish', (req, res) => {
 
     let existing;
     if (isSuperOrAdmin) {
-      existing = db.prepare('SELECT id, title, is_public, publish_status FROM prompts WHERE id = ?').get(promptId);
+      existing = await db.prepare('SELECT id, title, is_public, publish_status FROM prompts WHERE id = ?').get(promptId);
     } else {
-      existing = db.prepare('SELECT id, title, is_public, publish_status FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
+      existing = await db.prepare('SELECT id, title, is_public, publish_status FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
     }
 
     if (!existing) {
@@ -580,7 +580,7 @@ router.patch('/:id/publish', (req, res) => {
       const nextPublic = existing.is_public === 1 && existing.publish_status === 'approved' ? 0 : 1;
       const nextStatus = nextPublic === 1 ? 'approved' : 'draft';
 
-      db.prepare('UPDATE prompts SET is_public = ?, publish_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextPublic, nextStatus, promptId);
+      await db.prepare('UPDATE prompts SET is_public = ?, publish_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nextPublic, nextStatus, promptId);
 
       return res.json({
         message: nextPublic === 1 ? 'Prompt berhasil dipublikasikan ke galeri publik!' : 'Prompt diubah menjadi privat.',
@@ -592,14 +592,14 @@ router.patch('/:id/publish', (req, res) => {
       // If currently approved or pending -> withdraw to draft
       // If currently draft or rejected -> request approval
       if (existing.publish_status === 'approved' || existing.publish_status === 'pending') {
-        db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+        await db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
         return res.json({
           message: 'Prompt ditarik kembali menjadi privat.',
           is_public: 0,
           publish_status: 'draft',
         });
       } else {
-        db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
+        await db.prepare("UPDATE prompts SET is_public = 0, publish_status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(promptId);
         return res.json({
           message: 'Pengajuan publikasi berhasil dikirim! Menunggu persetujuan admin.',
           is_public: 0,
@@ -614,18 +614,18 @@ router.patch('/:id/publish', (req, res) => {
 });
 
 // PATCH /api/prompts/:id/favorite - Toggle favorite
-router.patch('/:id/favorite', (req, res) => {
+router.patch('/:id/favorite', async (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.user.id;
 
-    const existing = db.prepare('SELECT id, is_favorite FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
+    const existing = await db.prepare('SELECT id, is_favorite FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan.' });
     }
 
     const newFav = existing.is_favorite === 1 ? 0 : 1;
-    db.prepare('UPDATE prompts SET is_favorite = ? WHERE id = ?').run(newFav, promptId);
+    await db.prepare('UPDATE prompts SET is_favorite = ? WHERE id = ?').run(newFav, promptId);
 
     res.json({ message: newFav ? 'Ditambahkan ke favorit' : 'Dihapus dari favorit', is_favorite: newFav });
   } catch (err) {
@@ -635,7 +635,7 @@ router.patch('/:id/favorite', (req, res) => {
 });
 
 // DELETE /api/prompts/:id - Delete prompt
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.user.id;
@@ -644,16 +644,30 @@ router.delete('/:id', (req, res) => {
     // Superadmin and admin can delete any prompt
     let existing;
     if (userRole === 'superadmin' || userRole === 'admin') {
-      existing = db.prepare('SELECT * FROM prompts WHERE id = ?').get(promptId);
+      existing = await db.prepare('SELECT * FROM prompts WHERE id = ?').get(promptId);
     } else {
-      existing = db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
+      existing = await db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
     }
 
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan atau Anda tidak memiliki izin.' });
     }
 
-    db.prepare('DELETE FROM prompts WHERE id = ?').run(promptId);
+    await db.prepare('DELETE FROM prompts WHERE id = ?').run(promptId);
+
+    if (existing.media_url && existing.media_url.startsWith('/uploads/')) {
+      const filePath = path.join(uploadDir, path.basename(existing.media_url));
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
+      }
+    }
+
+    res.json({ message: 'Prompt berhasil dihapus!' });
+  } catch (err) {
+    console.error('Delete prompt error:', err);
+    res.status(500).json({ error: 'Gagal menghapus prompt.' });
+  }
+});
 
     if (existing.media_url && existing.media_url.startsWith('/uploads/')) {
       const filePath = path.join(uploadDir, path.basename(existing.media_url));

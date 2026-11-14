@@ -6,7 +6,7 @@ import { authMiddleware, generateToken } from '../middleware/auth.js';
 const router = express.Router();
 
 // Login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { login, password } = req.body; // login can be email or username
 
@@ -14,7 +14,7 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ error: 'Silakan isi username/email dan password.' });
     }
 
-    const user = db.prepare(`
+    const user = await db.prepare(`
       SELECT * FROM users WHERE email = ? OR username = ?
     `).get(login.trim(), login.trim());
 
@@ -44,9 +44,9 @@ router.post('/login', (req, res) => {
 });
 
 // Current User profile
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = db.prepare('SELECT id, username, email, avatar, role, created_at FROM users WHERE id = ?').get(req.user.id);
+    const user = await db.prepare('SELECT id, username, email, avatar, role, created_at FROM users WHERE id = ?').get(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
     }

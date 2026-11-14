@@ -10,9 +10,9 @@ router.use(authMiddleware);
 router.use(requireRole(['superadmin', 'admin']));
 
 // GET /api/users - List all users with prompt count
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const users = db.prepare(`
+    const users = await db.prepare(`
       SELECT 
         u.id, 
         u.username, 
@@ -39,7 +39,7 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/users - Create new user
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { username, email, password, role = 'user' } = req.body;
     const currentUserRole = req.user.role;
@@ -61,7 +61,7 @@ router.post('/', (req, res) => {
     const cleanEmail = email.trim();
 
     // Check unique
-    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(cleanEmail, cleanUsername);
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(cleanEmail, cleanUsername);
     if (existing) {
       return res.status(400).json({ error: 'Username atau email sudah digunakan.' });
     }
@@ -74,10 +74,10 @@ router.post('/', (req, res) => {
       INSERT INTO users (username, email, password, avatar, role)
       VALUES (?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(cleanUsername, cleanEmail, hashedPassword, avatar, role);
+    const result = await stmt.run(cleanUsername, cleanEmail, hashedPassword, avatar, role);
     const newUserId = Number(result.lastInsertRowid);
 
-    const newUser = db.prepare('SELECT id, username, email, avatar, role, created_at FROM users WHERE id = ?').get(newUserId);
+    const newUser = await db.prepare('SELECT id, username, email, avatar, role, created_at FROM users WHERE id = ?').get(newUserId);
     res.status(201).json({ message: 'User berhasil dibuat!', user: newUser });
   } catch (err) {
     console.error('Create user error:', err);
@@ -86,13 +86,13 @@ router.post('/', (req, res) => {
 });
 
 // PUT /api/users/:id - Edit user
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const targetId = Number(req.params.id);
     const { username, email, password, role } = req.body;
     const currentUser = req.user;
 
-    const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    const targetUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
     if (!targetUser) {
       return res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
     }
@@ -117,7 +117,7 @@ router.put('/:id', (req, res) => {
     const cleanUsername = username ? username.trim() : targetUser.username;
     const cleanEmail = email ? email.trim() : targetUser.email;
 
-    const conflict = db.prepare('SELECT id FROM users WHERE (email = ? OR username = ?) AND id != ?').get(cleanEmail, cleanUsername, targetId);
+    const conflict = await db.prepare('SELECT id FROM users WHERE (email = ? OR username = ?) AND id != ?').get(cleanEmail, cleanUsername, targetId);
     if (conflict) {
       return res.status(400).json({ error: 'Username atau email sudah digunakan oleh pengguna lain.' });
     }
@@ -132,7 +132,7 @@ router.put('/:id', (req, res) => {
 
     const newRole = role || targetUser.role;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE users SET
         username = ?,
         email = ?,
@@ -141,7 +141,7 @@ router.put('/:id', (req, res) => {
       WHERE id = ?
     `).run(cleanUsername, cleanEmail, hashedPassword, newRole, targetId);
 
-    const updated = db.prepare(`
+    const updated = await db.prepare(`
       SELECT 
         u.id, u.username, u.email, u.avatar, u.role, u.created_at,
         (SELECT COUNT(*) FROM prompts WHERE prompts.user_id = u.id) as prompts_count
@@ -156,7 +156,7 @@ router.put('/:id', (req, res) => {
 });
 
 // DELETE /api/users/:id - Delete user
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const targetId = Number(req.params.id);
     const currentUser = req.user;
@@ -165,7 +165,7 @@ router.delete('/:id', (req, res) => {
       return res.status(400).json({ error: 'Anda tidak dapat menghapus akun Anda sendiri saat sedang login.' });
     }
 
-    const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
+    const targetUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(targetId);
     if (!targetUser) {
       return res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
     }
@@ -178,7 +178,7 @@ router.delete('/:id', (req, res) => {
       return res.status(403).json({ error: 'Hanya superadmin yang dapat menghapus akun admin.' });
     }
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
     res.json({ message: `Pengguna "${targetUser.username}" berhasil dihapus.` });
   } catch (err) {
     console.error('Delete user error:', err);

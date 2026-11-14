@@ -18,8 +18,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Initialize SQLite database & tables
-initDatabase();
+// Initialize database & tables (MySQL with SQLite fallback)
+await initDatabase();
 
 // Middlewares
 app.use(cors({
