@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'node:http';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -17,13 +18,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Initialize database & tables with safe error handling
-try {
-  await initDatabase();
-} catch (dbErr) {
-  console.error('❌ [DB] Error during database initialization:', dbErr);
-}
 
 // Middlewares
 app.use(cors({
@@ -93,6 +87,37 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Terjadi kesalahan pada server.' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Ruang Tumbuh Server running on http://0.0.0.0:${PORT}`);
+// Start listening immediately on primary port and fallback port
+const isSocket = typeof PORT === 'string' && (PORT.includes('/') || PORT.startsWith('\\\\.\\pipe'));
+const primaryPort = isSocket ? PORT : (Number(PORT) || 5000);
+
+const mainServer = http.createServer(app);
+
+mainServer.on('error', (err) => {
+  console.error('Main server listen error:', err.message);
 });
+
+if (isSocket) {
+  mainServer.listen(primaryPort, () => {
+    console.log(`🚀 Ruang Tumbuh Server is LIVE on socket: ${primaryPort}`);
+    initDatabase().catch(e => console.error('[DB] Background init error:', e));
+  });
+} else {
+  mainServer.listen(primaryPort, '0.0.0.0', () => {
+    console.log(`🚀 Ruang Tumbuh Server is LIVE on 0.0.0.0:${primaryPort}`);
+    initDatabase().catch(e => console.error('[DB] Background init error:', e));
+  });
+
+  // If primary port is not 3000, also bind to 3000 for LiteSpeed/Hostinger default routing
+  if (primaryPort !== 3000) {
+    try {
+      const secondaryServer = http.createServer(app);
+      secondaryServer.on('error', () => { /* ignore if port 3000 is occupied */ });
+      secondaryServer.listen(3000, '0.0.0.0', () => {
+        console.log(`🚀 Also listening on secondary port 0.0.0.0:3000`);
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+}
