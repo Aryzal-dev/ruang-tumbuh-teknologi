@@ -669,18 +669,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-    if (existing.media_url && existing.media_url.startsWith('/uploads/')) {
-      const filePath = path.join(uploadDir, path.basename(existing.media_url));
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) { /* ignore */ }
-      }
-    }
-
-    res.json({ message: 'Prompt berhasil dihapus!' });
-  } catch (err) {
-    console.error('Delete prompt error:', err);
-    res.status(500).json({ error: 'Gagal menghapus prompt.' });
-  }
-});
-
 export default router;

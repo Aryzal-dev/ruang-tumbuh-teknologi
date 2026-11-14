@@ -18,8 +18,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Initialize database & tables (MySQL with SQLite fallback)
-await initDatabase();
+// Initialize database & tables with safe error handling
+try {
+  await initDatabase();
+} catch (dbErr) {
+  console.error('❌ [DB] Error during database initialization:', dbErr);
+}
 
 // Middlewares
 app.use(cors({
@@ -60,6 +64,12 @@ if (fs.existsSync(clientDistPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`🚀 PromptVault Server running on http://localhost:${PORT}`);
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ error: err.message || 'Terjadi kesalahan pada server.' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Ruang Tumbuh Server running on http://0.0.0.0:${PORT}`);
 });

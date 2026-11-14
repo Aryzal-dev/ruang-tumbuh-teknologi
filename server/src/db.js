@@ -1,5 +1,4 @@
 import mysql from 'mysql2/promise';
-import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +11,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Database configuration from environment variables
-const DB_HOST = process.env.DB_HOST;
-const DB_USER = process.env.DB_USER;
+const rawHost = process.env.DB_HOST;
+const DB_HOST = rawHost === 'localhost' ? '127.0.0.1' : rawHost;
+const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
 const DB_NAME = process.env.DB_NAME;
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
@@ -21,16 +21,25 @@ const DB_PORT = Number(process.env.DB_PORT) || 3306;
 export let isMySQL = Boolean(DB_HOST && DB_NAME);
 let pool = null;
 let sqliteDb = null;
+let DatabaseSyncClass = null;
 
 // Setup SQLite fallback if MySQL is not configured
-function getSqliteInstance() {
+async function getSqliteInstance() {
   if (!sqliteDb) {
+    if (!DatabaseSyncClass) {
+      try {
+        const sqliteModule = await import('node:sqlite');
+        DatabaseSyncClass = sqliteModule.DatabaseSync;
+      } catch (e) {
+        throw new Error('SQLite tidak didukung pada versi Node ini. Silakan konfigurasi variabel MySQL (DB_HOST, DB_USER, DB_NAME, DB_PASSWORD).');
+      }
+    }
     const dataDir = path.resolve(__dirname, '..', 'data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     const dbPath = path.join(dataDir, 'database.sqlite');
-    sqliteDb = new DatabaseSync(dbPath);
+    sqliteDb = new DatabaseSyncClass(dbPath);
     sqliteDb.exec('PRAGMA foreign_keys = ON;');
   }
   return sqliteDb;
@@ -50,7 +59,7 @@ export const db = {
           const [rows] = await pool.query(sql, flat);
           return rows;
         } else {
-          const sqlite = getSqliteInstance();
+          const sqlite = await getSqliteInstance();
           return sqlite.prepare(sql).all(...flat);
         }
       },
@@ -61,7 +70,7 @@ export const db = {
           const [rows] = await pool.query(sql, flat);
           return rows[0] || null;
         } else {
-          const sqlite = getSqliteInstance();
+          const sqlite = await getSqliteInstance();
           return sqlite.prepare(sql).get(...flat) || null;
         }
       },
@@ -75,7 +84,7 @@ export const db = {
             changes: result.affectedRows,
           };
         } else {
-          const sqlite = getSqliteInstance();
+          const sqlite = await getSqliteInstance();
           const res = sqlite.prepare(sql).run(...flat);
           return {
             lastInsertRowid: Number(res.lastInsertRowid),
@@ -90,7 +99,7 @@ export const db = {
     if (isMySQL && pool) {
       return pool.query(sql);
     } else {
-      const sqlite = getSqliteInstance();
+      const sqlite = await getSqliteInstance();
       return sqlite.exec(sql);
     }
   },
@@ -100,7 +109,7 @@ export const db = {
       const [rows] = await pool.query(sql, params);
       return rows;
     } else {
-      const sqlite = getSqliteInstance();
+      const sqlite = await getSqliteInstance();
       return sqlite.prepare(sql).all(...params);
     }
   },
@@ -224,6 +233,7 @@ export async function initDatabase() {
         connectionLimit: 10,
         queueLimit: 0,
         charset: 'utf8mb4',
+        connectTimeout: 8000,
       });
 
       // Test connection
@@ -280,7 +290,7 @@ export async function initDatabase() {
   // If not MySQL, initialize SQLite
   if (!isMySQL) {
     console.log('📦 [DB] Initializing SQLite database...');
-    const sqlite = getSqliteInstance();
+    const sqlite = await getSqliteInstance();
 
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS users (
