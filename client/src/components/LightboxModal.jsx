@@ -9,7 +9,6 @@ import {
   Edit3,
   ChevronLeft,
   ChevronRight,
-  Cpu,
   Layers,
   Sparkles,
   Maximize2,
@@ -43,7 +42,10 @@ export default function LightboxModal({
   const [copiedNeg, setCopiedNeg] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const canEditOrDelete = user && (user.id === prompt.user_id || user.role === 'superadmin' || user.role === 'admin');
+  const isApproved = prompt.publish_status === 'approved' || prompt.is_public === 1;
+  const isSuperOrAdmin = isAdmin || user?.role === 'superadmin' || user?.role === 'admin';
+  const canEditOrDelete = user && (isSuperOrAdmin || (user.id === prompt.user_id && !isApproved));
+  const showPublishButton = onTogglePublish && (isSuperOrAdmin || !isApproved);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -192,10 +194,6 @@ export default function LightboxModal({
             {/* Header / Title */}
             <div>
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-[#B7F36B]/10 text-[#B7F36B] border border-[#B7F36B]/30">
-                  <Cpu className="w-3.5 h-3.5" />
-                  {prompt.ai_model || 'Midjourney'}
-                </span>
                 {prompt.is_public !== undefined && (
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold border ${
@@ -320,82 +318,6 @@ export default function LightboxModal({
               </div>
             </div>
 
-            {/* Negative Prompt (if available) */}
-            {prompt.negative_prompt && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#E8ECF1]/70">
-                    Negative Prompt
-                  </label>
-                  <button
-                    onClick={() =>
-                      copyToClipboard(prompt.negative_prompt, 'negative')
-                    }
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-all cursor-pointer ${
-                      copiedNeg
-                        ? 'bg-[#B7F36B] text-[#101C32] font-bold'
-                        : 'bg-[#101C32] hover:bg-[#182845] text-[#E8ECF1] border border-[#22375D]'
-                    }`}
-                  >
-                    {copiedNeg ? (
-                      <Check className="w-3 h-3 text-[#101C32]" />
-                    ) : (
-                      <Copy className="w-3 h-3 text-[#B7F36B]" />
-                    )}
-                    <span>{copiedNeg ? 'Tersalin' : 'Salin'}</span>
-                  </button>
-                </div>
-                <div className="p-2.5 rounded-xl bg-[#101C32] border border-[#22375D] text-[#E8ECF1]/70 text-xs font-mono leading-relaxed max-h-32 overflow-y-auto">
-                  {prompt.negative_prompt}
-                </div>
-              </div>
-            )}
-
-            {/* Parameter Badges Grid */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#E8ECF1]/70">
-                Parameter Detail
-              </label>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-[#101C32] border border-[#22375D]">
-                  <span className="text-[#E8ECF1]/60 block text-[10px] uppercase font-semibold">
-                    Rasio Aspek
-                  </span>
-                  <span className="font-mono text-white font-medium">
-                    {prompt.aspect_ratio || '16:9'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-[#101C32] border border-[#22375D]">
-                  <span className="text-[#E8ECF1]/60 block text-[10px] uppercase font-semibold">
-                    Seed
-                  </span>
-                  <span className="font-mono text-white font-medium truncate block">
-                    {prompt.seed || '-'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-[#101C32] border border-[#22375D]">
-                  <span className="text-[#E8ECF1]/60 block text-[10px] uppercase font-semibold">
-                    CFG Scale
-                  </span>
-                  <span className="font-mono text-white font-medium">
-                    {prompt.cfg_scale || '-'}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-[#101C32] border border-[#22375D]">
-                  <span className="text-[#E8ECF1]/60 block text-[10px] uppercase font-semibold">
-                    Steps & Sampler
-                  </span>
-                  <span className="font-mono text-white font-medium truncate block">
-                    {prompt.steps ? `${prompt.steps} steps` : '-'}{' '}
-                    {prompt.sampler ? `(${prompt.sampler})` : ''}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {/* Tags */}
             {tags.length > 0 && (
               <div className="space-y-1.5">
@@ -417,8 +339,9 @@ export default function LightboxModal({
           </div>
 
           {/* Action Toolbar */}
-          <div className="pt-5 mt-5 border-t border-[#22375D] flex items-center justify-between gap-3">
-            {user ? (
+          <div className="pt-5 mt-5 border-t border-[#22375D] flex items-center justify-between gap-3 flex-wrap">
+            {/* Tombol Favorit hanya untuk Admin / Superadmin */}
+            {isSuperOrAdmin ? (
               <button
                 onClick={() => onToggleFavorite(prompt.id)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
@@ -434,71 +357,81 @@ export default function LightboxModal({
                 />
                 <span>{prompt.is_favorite ? 'Favorit' : 'Jadikan Favorit'}</span>
               </button>
-            ) : <div />}
-
-            {canEditOrDelete && (
-              <div className="flex items-center gap-2">
-                {onTogglePublish && (
-                  <button
-                    onClick={() => onTogglePublish(prompt.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                      prompt.publish_status === 'pending'
-                        ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
-                        : prompt.is_public === 1
-                        ? 'bg-[#B7F36B]/15 hover:bg-[#B7F36B]/25 text-[#B7F36B] border-[#B7F36B]/30'
-                        : 'bg-[#101C32] hover:bg-[#182845] text-[#E8ECF1] border border-[#22375D]'
-                    }`}
-                    title={
-                      prompt.publish_status === 'pending'
-                        ? isAdmin
-                          ? 'Prompt ini sedang menunggu persetujuan Admin'
-                          : 'Klik untuk membatalkan pengajuan publikasi'
-                        : prompt.is_public === 1
-                        ? 'Klik untuk jadikan privat'
-                        : isAdmin
-                        ? 'Klik untuk publikasikan langsung ke galeri publik'
-                        : 'Klik untuk mengajukan publikasi ke Admin'
-                    }
-                  >
-                    {prompt.publish_status === 'pending' ? (
-                      <Clock className="w-3.5 h-3.5 text-amber-300" />
-                    ) : prompt.is_public === 1 ? (
-                      <Globe className="w-3.5 h-3.5" />
-                    ) : (
-                      <Lock className="w-3.5 h-3.5" />
-                    )}
-                    <span>
-                      {prompt.publish_status === 'pending'
-                        ? isAdmin
-                          ? 'Pending'
-                          : 'Batal Ajukan'
-                        : prompt.is_public === 1
-                        ? 'Publik'
-                        : isAdmin
-                        ? 'Jadikan Publik'
-                        : 'Ajukan Publik'}
-                    </span>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => onEdit(prompt)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#101C32] hover:bg-[#B7F36B] text-[#E8ECF1] hover:text-[#101C32] text-xs font-bold border border-[#22375D] transition-all cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit</span>
-                </button>
-
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
-                  title="Hapus Prompt"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+            ) : (
+              <div />
             )}
+
+            <div className="flex items-center gap-2">
+              {/* Tombol Publik (Sembunyi jika sudah disetujui untuk user biasa) */}
+              {showPublishButton && (
+                <button
+                  onClick={() => onTogglePublish(prompt.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    prompt.publish_status === 'pending'
+                      ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
+                      : prompt.is_public === 1
+                      ? 'bg-[#B7F36B]/15 hover:bg-[#B7F36B]/25 text-[#B7F36B] border-[#B7F36B]/30'
+                      : 'bg-[#101C32] hover:bg-[#182845] text-[#E8ECF1] border border-[#22375D]'
+                  }`}
+                  title={
+                    prompt.publish_status === 'pending'
+                      ? isAdmin
+                        ? 'Prompt ini sedang menunggu persetujuan Admin'
+                        : 'Klik untuk membatalkan pengajuan publikasi'
+                      : prompt.is_public === 1
+                      ? 'Klik untuk jadikan privat'
+                      : isAdmin
+                      ? 'Klik untuk publikasikan langsung ke galeri publik'
+                      : 'Klik untuk mengajukan publikasi ke Admin'
+                  }
+                >
+                  {prompt.publish_status === 'pending' ? (
+                    <Clock className="w-3.5 h-3.5 text-amber-300" />
+                  ) : prompt.is_public === 1 ? (
+                    <Globe className="w-3.5 h-3.5" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {prompt.publish_status === 'pending'
+                      ? isAdmin
+                        ? 'Pending'
+                        : 'Batal Ajukan'
+                      : prompt.is_public === 1
+                      ? 'Publik'
+                      : isAdmin
+                      ? 'Jadikan Publik'
+                      : 'Ajukan Publik'}
+                  </span>
+                </button>
+              )}
+
+              {/* Tombol Edit & Hapus (Hanya muncul jika diizinkan: Admin atau User pemilik saat belum disetujui) */}
+              {canEditOrDelete ? (
+                <>
+                  <button
+                    onClick={() => onEdit(prompt)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#101C32] hover:bg-[#B7F36B] text-[#E8ECF1] hover:text-[#101C32] text-xs font-bold border border-[#22375D] transition-all cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
+                    title="Hapus Prompt"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              ) : !isSuperOrAdmin && isApproved ? (
+                <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                  ✓ Telah Disetujui (Terkunci)
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

@@ -181,7 +181,7 @@ router.get('/', async (req, res) => {
     const rows = await db.prepare(sql).all(...params);
 
     // Compute stats
-    let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending;
+    let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending, mineTotal;
 
     if (isSuperOrAdmin) {
       totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts').get())?.count || 0;
@@ -190,6 +190,7 @@ router.get('/', async (req, res) => {
       totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
       totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
       totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get())?.count || 0;
+      mineTotal = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId))?.count || 0;
     } else {
       totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId))?.count || 0;
       totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId))?.count || 0;
@@ -197,6 +198,7 @@ router.get('/', async (req, res) => {
       totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
       totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId))?.count || 0;
       totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId))?.count || 0;
+      mineTotal = totalPrompts;
     }
 
     res.json({
@@ -208,6 +210,7 @@ router.get('/', async (req, res) => {
         favorites: totalFavorites,
         published: totalPublished,
         pending: totalPending,
+        mine_total: mineTotal,
       },
     });
   } catch (err) {
@@ -378,6 +381,11 @@ router.put('/:id', upload.single('media_file'), async (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan atau Anda tidak memiliki izin.' });
+    }
+
+    // Prompt yang sudah disetujui tidak bisa diedit oleh user biasa
+    if (!isSuperOrAdmin && (existing.publish_status === 'approved' || existing.is_public === 1)) {
+      return res.status(403).json({ error: 'Prompt yang sudah disetujui tidak dapat diedit oleh user biasa.' });
     }
 
     const {
@@ -575,6 +583,11 @@ router.patch('/:id/publish', async (req, res) => {
       return res.status(404).json({ error: 'Prompt tidak ditemukan atau Anda tidak memiliki izin.' });
     }
 
+    // Prompt yang sudah disetujui tidak bisa diedit oleh user biasa
+    if (!isSuperOrAdmin && (existing.publish_status === 'approved' || existing.is_public === 1)) {
+      return res.status(403).json({ error: 'Prompt yang sudah disetujui tidak dapat diedit oleh user biasa.' });
+    }
+
     if (isSuperOrAdmin) {
       // Superadmin / Admin can directly approve or make private
       const nextPublic = existing.is_public === 1 && existing.publish_status === 'approved' ? 0 : 1;
@@ -640,10 +653,11 @@ router.delete('/:id', async (req, res) => {
     const promptId = req.params.id;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const isSuperOrAdmin = userRole === 'superadmin' || userRole === 'admin';
 
     // Superadmin and admin can delete any prompt
     let existing;
-    if (userRole === 'superadmin' || userRole === 'admin') {
+    if (isSuperOrAdmin) {
       existing = await db.prepare('SELECT * FROM prompts WHERE id = ?').get(promptId);
     } else {
       existing = await db.prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?').get(promptId, userId);
@@ -651,6 +665,11 @@ router.delete('/:id', async (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: 'Prompt tidak ditemukan atau Anda tidak memiliki izin.' });
+    }
+
+    // Prompt yang sudah disetujui tidak bisa dihapus oleh user biasa
+    if (!isSuperOrAdmin && (existing.publish_status === 'approved' || existing.is_public === 1)) {
+      return res.status(403).json({ error: 'Prompt yang sudah disetujui tidak dapat dihapus oleh user biasa.' });
     }
 
     await db.prepare('DELETE FROM prompts WHERE id = ?').run(promptId);

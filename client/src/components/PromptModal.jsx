@@ -4,29 +4,14 @@ import {
   Upload,
   Link as LinkIcon,
   Sparkles,
-  Cpu,
   Image as ImageIcon,
   Video as VideoIcon,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   Globe,
   Lock,
   Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-const COMMON_MODELS = [
-  'Midjourney v6',
-  'Flux.1 Dev',
-  'Flux.1 Schnell',
-  'Stable Diffusion XL',
-  'Kling AI 1.5',
-  'Runway Gen-3',
-  'Luma Dream Machine',
-  'OpenAI Sora',
-  'DALL-E 3',
-];
 
 const ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:5', '21:9', '3:2'];
 
@@ -37,35 +22,24 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
   const [mediaTab, setMediaTab] = useState('upload'); // 'upload' | 'url'
   const [title, setTitle] = useState('');
   const [promptText, setPromptText] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
   const [mediaType, setMediaType] = useState('image');
   const [externalUrl, setExternalUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
-  const [aiModel, setAiModel] = useState('Midjourney v6');
   const [aspectRatio, setAspectRatio] = useState('16:9');
-  const [seed, setSeed] = useState('');
-  const [cfgScale, setCfgScale] = useState('');
-  const [steps, setSteps] = useState('');
-  const [sampler, setSampler] = useState('');
   const [tags, setTags] = useState('');
   const [isPublic, setIsPublic] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const isAlreadyApproved = editingPrompt && (editingPrompt.publish_status === 'approved' || editingPrompt.is_public === 1);
 
   useEffect(() => {
     if (editingPrompt) {
       setTitle(editingPrompt.title || '');
       setPromptText(editingPrompt.prompt_text || '');
-      setNegativePrompt(editingPrompt.negative_prompt || '');
       setMediaType(editingPrompt.media_type || 'image');
-      setAiModel(editingPrompt.ai_model || 'Midjourney v6');
       setAspectRatio(editingPrompt.aspect_ratio || '16:9');
-      setSeed(editingPrompt.seed || '');
-      setCfgScale(editingPrompt.cfg_scale || '');
-      setSteps(editingPrompt.steps || '');
-      setSampler(editingPrompt.sampler || '');
       setTags(editingPrompt.tags || '');
       setIsPublic(editingPrompt.is_public !== 0);
 
@@ -81,21 +55,14 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
       // Reset defaults
       setTitle('');
       setPromptText('');
-      setNegativePrompt('');
       setMediaType('image');
       setExternalUrl('');
       setSelectedFile(null);
       setPreviewUrl('');
-      setAiModel('Midjourney v6');
       setAspectRatio('16:9');
-      setSeed('');
-      setCfgScale('');
-      setSteps('');
-      setSampler('');
       setTags('');
       setIsPublic(true);
       setMediaTab('upload');
-      setShowAdvanced(false);
     }
     setError('');
   }, [editingPrompt, isOpen]);
@@ -128,6 +95,12 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
     e.preventDefault();
     setError('');
 
+    // Protection: regular user cannot edit an approved prompt
+    if (isAlreadyApproved && !isAdmin) {
+      setError('Prompt yang sudah disetujui tidak dapat diedit oleh user biasa.');
+      return;
+    }
+
     if (!title.trim() || !promptText.trim()) {
       setError('Judul dan Prompt Utama wajib diisi!');
       return;
@@ -148,14 +121,8 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('prompt_text', promptText.trim());
-      formData.append('negative_prompt', negativePrompt.trim());
       formData.append('media_type', mediaType);
-      formData.append('ai_model', aiModel);
       formData.append('aspect_ratio', aspectRatio);
-      formData.append('seed', seed.trim());
-      formData.append('cfg_scale', cfgScale.trim());
-      formData.append('steps', steps.trim());
-      formData.append('sampler', sampler.trim());
       formData.append('tags', tags.trim());
       formData.append('is_public', isPublic ? '1' : '0');
 
@@ -380,63 +347,26 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
             />
           </div>
 
-          {/* Negative Prompt */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#E8ECF1]/60">
-              Negative Prompt (Opsional)
+          {/* Aspect Ratio */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#E8ECF1]/80">
+              Aspek Rasio
             </label>
-            <textarea
-              rows={2}
-              value={negativePrompt}
-              onChange={(e) => setNegativePrompt(e.target.value)}
-              placeholder="blurry, distorted, low quality, extra fingers..."
-              className="w-full bg-[#15233D] border border-[#22375D] rounded-xl p-3 text-xs font-mono text-[#E8ECF1] placeholder-[#E8ECF1]/40 focus:outline-none focus:border-[#B7F36B]"
-            />
-          </div>
-
-          {/* AI Model & Aspect Ratio */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#E8ECF1]/80">
-                Model AI
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="models-list"
-                  value={aiModel}
-                  onChange={(e) => setAiModel(e.target.value)}
-                  placeholder="Pilih atau ketik nama model"
-                  className="w-full bg-[#15233D] border border-[#22375D] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-[#E8ECF1]/40 focus:outline-none focus:border-[#B7F36B]"
-                />
-                <datalist id="models-list">
-                  {COMMON_MODELS.map((m) => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#E8ECF1]/80">
-                Aspek Rasio
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {ASPECT_RATIOS.map((ar) => (
-                  <button
-                    key={ar}
-                    type="button"
-                    onClick={() => setAspectRatio(ar)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
-                      aspectRatio === ar
-                        ? 'bg-[#B7F36B] text-[#101C32]'
-                        : 'bg-[#15233D] text-[#E8ECF1]/70 border border-[#22375D] hover:text-white'
-                    }`}
-                  >
-                    {ar}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-2">
+              {ASPECT_RATIOS.map((ar) => (
+                <button
+                  key={ar}
+                  type="button"
+                  onClick={() => setAspectRatio(ar)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                    aspectRatio === ar
+                      ? 'bg-[#B7F36B] text-[#101C32] shadow-sm'
+                      : 'bg-[#15233D] text-[#E8ECF1]/70 border border-[#22375D] hover:text-white'
+                  }`}
+                >
+                  {ar}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -454,143 +384,76 @@ export default function PromptModal({ isOpen, onClose, onSave, editingPrompt }) 
             />
           </div>
 
-          {/* Advanced Parameters Accordion */}
-          <div className="border border-[#22375D] rounded-2xl overflow-hidden bg-[#15233D]/60">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full p-3.5 flex items-center justify-between text-xs font-semibold text-[#E8ECF1] hover:text-[#B7F36B] transition-colors cursor-pointer"
-            >
-              <span>Parameter Generator Tambahan (Seed, CFG, Steps, Sampler)</span>
-              {showAdvanced ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </button>
-
-            {showAdvanced && (
-              <div className="p-4 border-t border-[#22375D] grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#101C32]">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#E8ECF1]/60">
-                    Seed
-                  </label>
-                  <input
-                    type="text"
-                    value={seed}
-                    onChange={(e) => setSeed(e.target.value)}
-                    placeholder="849204"
-                    className="w-full bg-[#15233D] border border-[#22375D] rounded-lg px-2.5 py-1.5 text-xs text-white"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#E8ECF1]/60">
-                    CFG Scale
-                  </label>
-                  <input
-                    type="text"
-                    value={cfgScale}
-                    onChange={(e) => setCfgScale(e.target.value)}
-                    placeholder="7.0"
-                    className="w-full bg-[#15233D] border border-[#22375D] rounded-lg px-2.5 py-1.5 text-xs text-white"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#E8ECF1]/60">
-                    Steps
-                  </label>
-                  <input
-                    type="text"
-                    value={steps}
-                    onChange={(e) => setSteps(e.target.value)}
-                    placeholder="30"
-                    className="w-full bg-[#15233D] border border-[#22375D] rounded-lg px-2.5 py-1.5 text-xs text-white"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-[#E8ECF1]/60">
-                    Sampler
-                  </label>
-                  <input
-                    type="text"
-                    value={sampler}
-                    onChange={(e) => setSampler(e.target.value)}
-                    placeholder="Euler a"
-                    className="w-full bg-[#15233D] border border-[#22375D] rounded-lg px-2.5 py-1.5 text-xs text-white"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Fitur Publikasi / Pengajuan Publikasi ke Galeri Publik */}
-          <div className="p-4 rounded-2xl bg-[#15233D] border border-[#22375D] flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                  isPublic
-                    ? isAdmin
-                      ? 'bg-[#B7F36B]/15 text-[#B7F36B] border border-[#B7F36B]/30'
-                      : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    : 'bg-[#101C32] text-[#E8ECF1]/60 border border-[#22375D]'
-                }`}
-              >
-                {isPublic ? (
-                  isAdmin ? (
-                    <Globe className="w-5 h-5" />
-                  ) : (
-                    <Clock className="w-5 h-5 text-amber-300" />
-                  )
-                ) : (
-                  <Lock className="w-5 h-5" />
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-white font-['Plus_Jakarta_Sans']">
-                    {isAdmin
-                      ? 'Publikasikan ke Galeri Publik'
-                      : 'Ajukan Publikasi ke Galeri Publik'}
-                  </span>
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      isPublic
-                        ? isAdmin
-                          ? 'bg-[#B7F36B]/20 text-[#B7F36B] border border-[#B7F36B]/40'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        : 'bg-[#101C32] text-[#E8ECF1]/60 border border-[#22375D]'
-                    }`}
-                  >
-                    {isPublic
+          {/* Fitur Publikasi / Pengajuan Publikasi ke Galeri Publik (Sembunyikan jika sudah disetujui untuk user biasa) */}
+          {(!isAlreadyApproved || isAdmin) && (
+            <div className="p-4 rounded-2xl bg-[#15233D] border border-[#22375D] flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                    isPublic
                       ? isAdmin
-                        ? 'Publik Langsung'
-                        : 'Perlu Persetujuan Admin'
-                      : 'Privat'}
-                  </span>
+                        ? 'bg-[#B7F36B]/15 text-[#B7F36B] border border-[#B7F36B]/30'
+                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'bg-[#101C32] text-[#E8ECF1]/60 border border-[#22375D]'
+                  }`}
+                >
+                  {isPublic ? (
+                    isAdmin ? (
+                      <Globe className="w-5 h-5" />
+                    ) : (
+                      <Clock className="w-5 h-5 text-amber-300" />
+                    )
+                  ) : (
+                    <Lock className="w-5 h-5" />
+                  )}
                 </div>
-                <p className="text-xs text-[#E8ECF1]/70 mt-0.5">
-                  {isAdmin
-                    ? isPublic
-                      ? 'Sebagai Admin, karya ini akan langsung tayang di Galeri Publik.'
-                      : 'Hanya tersimpan di Studio (disembunyikan dari galeri publik).'
-                    : isPublic
-                    ? 'Karya akan diajukan ke Admin/Superadmin untuk persetujuan sebelum tampil di Galeri Publik.'
-                    : 'Hanya tersimpan di Studio Pribadi Anda (tidak diajukan ke galeri publik).'}
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white font-['Plus_Jakarta_Sans']">
+                      {isAdmin
+                        ? 'Publikasikan ke Galeri Publik'
+                        : 'Ajukan Publikasi ke Galeri Publik'}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        isPublic
+                          ? isAdmin
+                            ? 'bg-[#B7F36B]/20 text-[#B7F36B] border border-[#B7F36B]/40'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-[#101C32] text-[#E8ECF1]/60 border border-[#22375D]'
+                      }`}
+                    >
+                      {isPublic
+                        ? isAdmin
+                          ? 'Publik Langsung'
+                          : 'Perlu Persetujuan Admin'
+                        : 'Privat'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#E8ECF1]/70 mt-0.5">
+                    {isAdmin
+                      ? isPublic
+                        ? 'Sebagai Admin, karya ini akan langsung tayang di Galeri Publik.'
+                        : 'Hanya tersimpan di Studio (disembunyikan dari galeri publik).'
+                      : isPublic
+                      ? 'Karya akan diajukan ke Admin/Superadmin untuk persetujuan sebelum tampil di Galeri Publik.'
+                      : 'Hanya tersimpan di Studio Pribadi Anda (tidak diajukan ke galeri publik).'}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Toggle Switch */}
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
-              <input
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-12 h-6 bg-[#101C32] border border-[#22375D] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#B7F36B] shadow-inner"></div>
-            </label>
-          </div>
+              {/* Toggle Switch */}
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-12 h-6 bg-[#101C32] border border-[#22375D] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#B7F36B] shadow-inner"></div>
+              </label>
+            </div>
+          )}
 
           {/* Submit Actions */}
           <div className="pt-4 border-t border-[#22375D] flex items-center justify-end gap-3">

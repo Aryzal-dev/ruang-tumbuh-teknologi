@@ -7,7 +7,7 @@ import PromptCard from '../components/PromptCard';
 import LightboxModal from '../components/LightboxModal';
 import PromptModal from '../components/PromptModal';
 import UserManagement from '../components/UserManagement';
-import { Sparkles, Plus, ImageOff, Loader2, ExternalLink, Globe, Layers, Star, Video, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Plus, ImageOff, Loader2, ExternalLink, Globe, Layers, Star, Video, Image as ImageIcon, Clock } from 'lucide-react';
 
 export default function DashboardView({ onNavigate }) {
   const { user, logout } = useAuth();
@@ -243,11 +243,11 @@ export default function DashboardView({ onNavigate }) {
   };
 
   // Derive robust stats that are ALWAYS synchronized with current prompts collection
-  const statsTotal = stats?.stats?.total && stats.stats.total > 0 ? stats.stats.total : prompts.length;
-  const statsImages = stats?.stats?.images !== undefined && stats.stats.images > 0
+  const statsTotal = stats?.stats?.total !== undefined ? stats.stats.total : prompts.length;
+  const statsImages = stats?.stats?.images !== undefined
     ? stats.stats.images
     : prompts.filter((p) => p.media_type === 'image').length;
-  const statsVideos = stats?.stats?.videos !== undefined && stats.stats.videos > 0
+  const statsVideos = stats?.stats?.videos !== undefined
     ? stats.stats.videos
     : prompts.filter((p) => p.media_type === 'video').length;
   const statsFavorites = stats?.stats?.favorites !== undefined
@@ -256,6 +256,12 @@ export default function DashboardView({ onNavigate }) {
   const statsPublished = stats?.stats?.published !== undefined
     ? stats.stats.published
     : prompts.filter((p) => p.is_public === 1).length;
+  const statsPending = stats?.stats?.pending !== undefined
+    ? stats.stats.pending
+    : prompts.filter((p) => p.publish_status === 'pending').length;
+  const statsMineTotal = stats?.stats?.mine_total !== undefined
+    ? stats.stats.mine_total
+    : prompts.filter((p) => p.user_id === user?.id).length;
 
   const currentStats = {
     stats: {
@@ -264,6 +270,8 @@ export default function DashboardView({ onNavigate }) {
       videos: statsVideos,
       favorites: statsFavorites,
       published: statsPublished,
+      pending: statsPending,
+      mine_total: statsMineTotal,
     },
     models: stats?.models || [],
     tags: stats?.tags || [],
@@ -375,15 +383,18 @@ export default function DashboardView({ onNavigate }) {
 
                 <div className="bg-[#15233D] border border-[#22375D] rounded-2xl p-4 flex items-center justify-between">
                   <div>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[#E8ECF1]/60 block">
-                      Favorit
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 block">
+                      Menunggu Persetujuan
                     </span>
-                    <span className="text-2xl font-bold text-white mt-1 block font-['Plus_Jakarta_Sans']">
-                      {statsFavorites}
+                    <span className="text-2xl font-bold text-amber-300 mt-1 block font-['Plus_Jakarta_Sans']">
+                      {statsPending}
+                    </span>
+                    <span className="text-[10px] text-[#E8ECF1]/60 block mt-0.5 font-medium">
+                      {user?.role === 'superadmin' || user?.role === 'admin' ? 'Perlu kurasi admin' : 'Diajukan ke publik'}
                     </span>
                   </div>
-                  <div className="w-10 h-10 rounded-xl bg-[#B7F36B]/10 border border-[#B7F36B]/20 flex items-center justify-center text-[#B7F36B]">
-                    <Star className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Clock className="w-5 h-5" />
                   </div>
                 </div>
               </div>

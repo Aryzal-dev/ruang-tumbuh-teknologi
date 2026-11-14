@@ -6,7 +6,6 @@ import {
   X,
   Image as ImageIcon,
   Video as VideoIcon,
-  Cpu,
   Tag,
   Loader2,
   ImageOff,
@@ -250,26 +249,8 @@ export default function PublicGalleryView({ onNavigate }) {
             </button>
           </div>
 
-          {/* Filters: Model AI & Sort */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {stats?.models && stats.models.length > 0 && (
-              <div className="relative">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="bg-[#101C32] border border-[#22375D] rounded-xl px-3 py-2 text-xs font-medium text-[#E8ECF1] focus:outline-none focus:border-[#B7F36B] cursor-pointer appearance-none pr-8"
-                >
-                  <option value="">Semua Model AI</option>
-                  {stats.models.map((m) => (
-                    <option key={m.ai_model} value={m.ai_model}>
-                      {m.ai_model} ({m.count})
-                    </option>
-                  ))}
-                </select>
-                <Cpu className="w-3.5 h-3.5 text-[#9EACBF] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            )}
-
+          {/* Sort Control */}
+          <div className="flex items-center gap-3">
             <div className="relative">
               <select
                 value={sortBy}

@@ -8,7 +8,6 @@ import {
   Tag,
   LogOut,
   X,
-  Cpu,
   Globe,
   Users,
   Shield,
@@ -51,7 +50,6 @@ export default function Sidebar({
         { id: 'pending', label: 'Menunggu Persetujuan', icon: Clock, count: stats?.stats?.pending ?? 0, color: 'text-amber-400', badgeClass: (stats?.stats?.pending ?? 0) > 0 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : '' },
         { id: 'image', label: 'Gambar (Images)', icon: ImageIcon, count: stats?.stats?.images ?? 0, color: 'text-[#E8ECF1]' },
         { id: 'video', label: 'Video AI', icon: Video, count: stats?.stats?.videos ?? 0, color: 'text-[#B7F36B]' },
-        { id: 'favorite', label: 'Favorit Saya', icon: Star, count: stats?.stats?.favorites ?? 0, color: 'text-amber-400' },
       ];
 
   return (
@@ -219,49 +217,6 @@ export default function Sidebar({
             </div>
           )}
 
-          {/* AI Model Filters */}
-          {currentView === 'studio' && stats?.models && stats.models.length > 0 && (
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-[#9EACBF] px-3 mb-2 flex items-center justify-between font-['Plus_Jakarta_Sans']">
-                <div className="flex items-center gap-2">
-                  <Cpu className="w-3.5 h-3.5 text-[#B7F36B]" />
-                  <span>Model AI</span>
-                </div>
-                {selectedModel && (
-                  <button
-                    onClick={() => setSelectedModel('')}
-                    className="text-[10px] text-[#B7F36B] hover:underline cursor-pointer lowercase"
-                  >
-                    reset
-                  </button>
-                )}
-              </div>
-              <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                {stats.models.map((m) => {
-                  const isSelected = selectedModel === m.ai_model;
-                  return (
-                    <button
-                      key={m.ai_model}
-                      onClick={() => {
-                        setSelectedModel(isSelected ? '' : m.ai_model);
-                        if (window.innerWidth < 1024) onClose();
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#B7F36B]/20 text-[#B7F36B] border border-[#B7F36B]/40 font-bold'
-                          : 'text-[#E8ECF1]/80 hover:text-white hover:bg-[#15233D]'
-                      }`}
-                    >
-                      <span className="truncate">{m.ai_model}</span>
-                      <span className="text-[10px] bg-[#101C32] px-1.5 py-0.5 rounded text-[#9EACBF]">
-                        {m.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Popular Tags */}
           {currentView === 'studio' && stats?.tags && stats.tags.length > 0 && (

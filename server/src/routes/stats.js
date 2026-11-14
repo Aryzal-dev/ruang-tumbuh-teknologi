@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
     const userId = req.user.id;
     const isSuperOrAdmin = req.user.role === 'superadmin' || req.user.role === 'admin';
 
-    let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending;
+    let totalPrompts, totalImages, totalVideos, totalFavorites, totalPublished, totalPending, mineTotal;
 
     if (isSuperOrAdmin) {
       totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts').get())?.count || 0;
@@ -19,6 +19,7 @@ router.get('/', async (req, res) => {
       totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
       totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get())?.count || 0;
       totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE publish_status = 'pending'").get())?.count || 0;
+      mineTotal = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId))?.count || 0;
     } else {
       totalPrompts = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ?').get(userId))?.count || 0;
       totalImages = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND media_type = 'image'").get(userId))?.count || 0;
@@ -26,6 +27,7 @@ router.get('/', async (req, res) => {
       totalFavorites = (await db.prepare('SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_favorite = 1').get(userId))?.count || 0;
       totalPublished = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND is_public = 1 AND (publish_status = 'approved' OR publish_status IS NULL)").get(userId))?.count || 0;
       totalPending = (await db.prepare("SELECT COUNT(*) as count FROM prompts WHERE user_id = ? AND publish_status = 'pending'").get(userId))?.count || 0;
+      mineTotal = totalPrompts;
     }
 
     const modelsQuery = isSuperOrAdmin
@@ -57,6 +59,7 @@ router.get('/', async (req, res) => {
         favorites: totalFavorites,
         published: totalPublished,
         pending: totalPending,
+        mine_total: mineTotal,
       },
       models,
       tags: Array.from(tagSet).sort(),

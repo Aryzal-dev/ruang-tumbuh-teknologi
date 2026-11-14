@@ -6,7 +6,6 @@ import {
   Play,
   Image as ImageIcon,
   Video as VideoIcon,
-  Cpu,
   Layers,
   Clock,
   CheckCircle,
@@ -45,6 +44,9 @@ export default function PromptCard({
       onTogglePublish(prompt.id);
     }
   };
+
+  const isApproved = prompt.publish_status === 'approved' || prompt.is_public === 1;
+  const showPublishButton = prompt.is_public !== undefined && (!isApproved || isAdmin);
 
   const tags = prompt.tags
     ? prompt.tags
@@ -102,7 +104,7 @@ export default function PromptCard({
         )}
 
         {/* Top Floating Badges */}
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10 flex-wrap max-w-[85%]">
           <span
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md shadow-xs ${
               prompt.media_type === 'video'
@@ -124,7 +126,7 @@ export default function PromptCard({
             </span>
           )}
 
-          {prompt.is_public !== undefined && (
+          {showPublishButton && (
             <button
               type="button"
               onClick={handlePublish}
@@ -162,48 +164,40 @@ export default function PromptCard({
           )}
         </div>
 
-        {/* Favorite Star Button */}
-        <button
-          onClick={handleFavorite}
-          title={prompt.is_favorite ? 'Hapus dari Favorit' : 'Simpan ke Favorit'}
-          className={`absolute top-2.5 right-2.5 p-2 rounded-full backdrop-blur-md transition-all z-10 ${
-            prompt.is_favorite
-              ? 'bg-[#B7F36B] text-[#101C32] shadow-md shadow-[#B7F36B]/30'
-              : 'bg-black/50 text-[#E8ECF1]/70 hover:text-white hover:bg-black/70'
-          }`}
-        >
-          <Star
-            className={`w-3.5 h-3.5 ${
-              prompt.is_favorite ? 'fill-[#101C32]' : ''
+        {/* Favorite Star Button (Hanya untuk Admin / Superadmin) */}
+        {isAdmin && (
+          <button
+            onClick={handleFavorite}
+            title={prompt.is_favorite ? 'Hapus dari Favorit' : 'Simpan ke Favorit'}
+            className={`absolute top-2.5 right-2.5 p-2 rounded-full backdrop-blur-md transition-all z-10 cursor-pointer ${
+              prompt.is_favorite
+                ? 'bg-[#B7F36B] text-[#101C32] shadow-md shadow-[#B7F36B]/30'
+                : 'bg-black/50 text-[#E8ECF1]/70 hover:text-white hover:bg-black/70'
             }`}
-          />
-        </button>
+          >
+            <Star
+              className={`w-3.5 h-3.5 ${
+                prompt.is_favorite ? 'fill-[#101C32]' : ''
+              }`}
+            />
+          </button>
+        )}
       </div>
 
       {/* Card Content */}
       <div className="p-4 flex-1 flex flex-col justify-between">
         <div>
-          {/* AI Model Badge & Title */}
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#B7F36B] bg-[#B7F36B]/10 border border-[#B7F36B]/20 px-2 py-0.5 rounded-md">
-              <Cpu className="w-3 h-3 text-[#B7F36B]" />
-              {prompt.ai_model || 'Midjourney'}
-            </span>
-            {prompt.author_name ? (
-              <span className="text-[10px] text-[#E8ECF1]/70 flex items-center gap-1 truncate max-w-[120px]">
-                <img
-                  src={prompt.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(prompt.author_name)}`}
-                  alt={prompt.author_name}
-                  className="w-3.5 h-3.5 rounded-full object-cover"
-                />
-                <span className="truncate">@{prompt.author_name}</span>
-              </span>
-            ) : prompt.seed ? (
-              <span className="text-[10px] font-mono text-[#E8ECF1]/60 truncate">
-                Seed: {prompt.seed}
-              </span>
-            ) : null}
-          </div>
+          {/* Author Badge & Metadata */}
+          {prompt.author_name && (
+            <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-[#E8ECF1]/80">
+              <img
+                src={prompt.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(prompt.author_name)}`}
+                alt={prompt.author_name}
+                className="w-4 h-4 rounded-full object-cover border border-[#22375D]"
+              />
+              <span className="truncate">@{prompt.author_name}</span>
+            </div>
+          )}
 
           <h3 className="font-bold text-white text-sm line-clamp-1 group-hover:text-[#B7F36B] transition-colors font-['Plus_Jakarta_Sans']">
             {prompt.title}

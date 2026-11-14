@@ -16,7 +16,7 @@ export default function Header({
   setSelectedTag,
 }) {
   const { user } = useAuth();
-  const hasActiveFilters = selectedModel || selectedTag;
+  const hasActiveFilters = Boolean(selectedTag);
 
   return (
     <header className="sticky top-0 z-30 bg-[#101C32]/90 backdrop-blur-md border-b border-[#22375D] px-4 lg:px-8 py-4">
@@ -106,18 +106,6 @@ export default function Header({
             <SlidersHorizontal className="w-3 h-3 text-[#B7F36B]" />
             Filter aktif:
           </span>
-
-          {selectedModel && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#B7F36B]/15 text-[#B7F36B] border border-[#B7F36B]/30 font-medium">
-              Model: {selectedModel}
-              <button
-                onClick={() => setSelectedModel('')}
-                className="hover:text-white cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          )}
 
           {selectedTag && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#15233D] text-[#E8ECF1] border border-[#22375D] font-medium">
