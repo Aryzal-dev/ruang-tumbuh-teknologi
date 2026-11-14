@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
-import { initDatabase } from './db.js';
+import { initDatabase, db, dbStatus } from './db.js';
 import authRoutes from './routes/auth.js';
 import promptRoutes from './routes/prompts.js';
 import statsRoutes from './routes/stats.js';
@@ -50,6 +50,29 @@ app.use('/api/users', userRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Database diagnostics check (MySQL vs SQLite status)
+app.get('/api/db-status', async (req, res) => {
+  let userCount = 0;
+  let promptCount = 0;
+  try {
+    const userRes = await db.prepare('SELECT COUNT(*) as count FROM users').get();
+    userCount = userRes?.count || 0;
+    const promptRes = await db.prepare('SELECT COUNT(*) as count FROM prompts').get();
+    promptCount = promptRes?.count || 0;
+  } catch (e) {
+    // ignore
+  }
+
+  res.json({
+    ...dbStatus,
+    data_counts: {
+      users: userCount,
+      prompts: promptCount,
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Serve built frontend if client/dist exists

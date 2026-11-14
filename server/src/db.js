@@ -12,16 +12,29 @@ const __dirname = path.dirname(__filename);
 
 // Database configuration from environment variables
 const rawHost = process.env.DB_HOST;
-const DB_HOST = rawHost === 'localhost' ? '127.0.0.1' : rawHost;
-const DB_USER = process.env.DB_USER || 'root';
+const DB_USER = process.env.DB_USER;
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
 const DB_NAME = process.env.DB_NAME;
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
 
-export let isMySQL = Boolean(DB_HOST && DB_NAME);
+export let isMySQL = false;
 let pool = null;
 let sqliteDb = null;
 let DatabaseSyncClass = null;
+
+export const dbStatus = {
+  engine: 'Checking...',
+  isMySQL: false,
+  error: null,
+  config: {
+    DB_HOST: rawHost || null,
+    DB_USER: DB_USER || null,
+    DB_NAME: DB_NAME || null,
+    DB_PORT: DB_PORT,
+    has_password: Boolean(DB_PASSWORD),
+  },
+  connectedAt: null,
+};
 
 // Setup SQLite fallback if MySQL is not configured
 async function getSqliteInstance() {
@@ -220,27 +233,47 @@ async function ensurePromptsForUser(userId) {
 
 // Initialize tables and seeds
 export async function initDatabase() {
-  if (DB_HOST && DB_NAME) {
-    try {
-      console.log(`🔌 [DB] Connecting to MySQL at ${DB_HOST}:${DB_PORT}/${DB_NAME}...`);
-      pool = mysql.createPool({
-        host: DB_HOST,
-        user: DB_USER || 'root',
-        password: DB_PASSWORD,
-        database: DB_NAME,
-        port: DB_PORT,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
-        charset: 'utf8mb4',
-        connectTimeout: 8000,
-      });
+  const targetHost = rawHost || 'localhost';
 
-      // Test connection
-      await pool.query('SELECT 1 + 1 AS result');
-      isMySQL = true;
-      console.log(`✅ [DB] Successfully connected to MySQL database: ${DB_NAME}`);
+  if (rawHost && DB_NAME) {
+    const candidateHosts = targetHost === 'localhost' ? ['localhost', '127.0.0.1'] : [targetHost];
+    let lastError = null;
 
+    for (const host of candidateHosts) {
+      try {
+        console.log(`🔌 [DB] Connecting to MySQL at ${host}:${DB_PORT}/${DB_NAME}...`);
+        const candidatePool = mysql.createPool({
+          host,
+          user: DB_USER || 'root',
+          password: DB_PASSWORD,
+          database: DB_NAME,
+          port: DB_PORT,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+          charset: 'utf8mb4',
+          connectTimeout: 8000,
+        });
+
+        // Test connection
+        await candidatePool.query('SELECT 1 + 1 AS result');
+        pool = candidatePool;
+        isMySQL = true;
+        dbStatus.engine = 'MySQL';
+        dbStatus.isMySQL = true;
+        dbStatus.error = null;
+        dbStatus.connectedHost = host;
+        dbStatus.connectedAt = new Date().toISOString();
+
+        console.log(`✅ [DB] Successfully connected to MySQL database: ${DB_NAME} on ${host}`);
+        break;
+      } catch (err) {
+        lastError = err;
+        console.warn(`⚠️ [DB] Connection to MySQL at ${host} failed: ${err.message}`);
+      }
+    }
+
+    if (isMySQL && pool) {
       // Create Users Table in MySQL
       await pool.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -280,11 +313,19 @@ export async function initDatabase() {
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
-    } catch (err) {
-      console.warn(`⚠️ [DB] MySQL connection failed (${err.message}). Falling back to local SQLite database.`);
+    } else {
+      console.warn(`⚠️ [DB] All MySQL connection attempts failed (${lastError?.message}). Falling back to local SQLite database.`);
       isMySQL = false;
       pool = null;
+      dbStatus.engine = 'SQLite (Fallback)';
+      dbStatus.isMySQL = false;
+      dbStatus.error = lastError?.message || 'MySQL connection failed';
+      dbStatus.code = lastError?.code || null;
     }
+  } else {
+    dbStatus.engine = 'SQLite (Default)';
+    dbStatus.isMySQL = false;
+    dbStatus.error = 'Variabel DB_HOST atau DB_NAME belum dikonfigurasikan di Environment Variables.';
   }
 
   // If not MySQL, initialize SQLite
