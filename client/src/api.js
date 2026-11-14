@@ -64,6 +64,8 @@ export const api = {
     const searchParams = new URLSearchParams();
     if (params.media_type) searchParams.append('media_type', params.media_type);
     if (params.favorite) searchParams.append('favorite', params.favorite);
+    if (params.publish_status) searchParams.append('publish_status', params.publish_status);
+    if (params.is_public !== undefined && params.is_public !== '') searchParams.append('is_public', params.is_public);
     if (params.ai_model) searchParams.append('ai_model', params.ai_model);
     if (params.q) searchParams.append('q', params.q);
     if (params.sort) searchParams.append('sort', params.sort);

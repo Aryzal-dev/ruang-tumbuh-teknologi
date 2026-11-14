@@ -412,12 +412,18 @@ export default function DashboardView({ onNavigate }) {
                   <h2 className="text-xl font-bold text-white mt-1.5 flex items-center gap-2 font-['Plus_Jakarta_Sans']">
                     <span>
                       {activeFilter === 'all'
-                        ? 'Semua Koleksi Prompt'
+                        ? (user?.role === 'superadmin' || user?.role === 'admin' ? 'Semua Prompt (Seluruh User)' : 'Semua Prompt Saya')
+                        : activeFilter === 'pending'
+                        ? 'Menunggu Persetujuan Publikasi'
+                        : activeFilter === 'mine'
+                        ? 'Prompt Saya Saja'
                         : activeFilter === 'image'
                         ? 'Koleksi Gambar (Images)'
                         : activeFilter === 'video'
                         ? 'Koleksi Video AI'
-                        : 'Prompt Favorit'}
+                        : activeFilter === 'favorite'
+                        ? 'Prompt Favorit'
+                        : 'Koleksi Prompt'}
                     </span>
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#15233D] text-[#B7F36B] font-bold border border-[#22375D]">
                       {prompts.length} item
@@ -425,7 +431,9 @@ export default function DashboardView({ onNavigate }) {
                   </h2>
 
                   <p className="text-xs text-[#E8ECF1]/70 mt-0.5">
-                    Kelola koleksi prompt, atur status publikasi, dan salin parameter generasi.
+                    {activeFilter === 'pending'
+                      ? 'Daftar prompt yang sedang menunggu tinjauan dan persetujuan dari Admin sebelum tayang di galeri publik.'
+                      : 'Kelola koleksi prompt, atur status publikasi, dan salin parameter generasi.'}
                   </p>
                 </div>
               </div>
